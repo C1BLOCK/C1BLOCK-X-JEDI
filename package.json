@@ -1,0 +1,7 @@
+{
+  "name": "c1block-x-jedi-site",
+  "private": true,
+  "dependencies": {
+    "@netlify/blobs": "^9.0.0"
+  }
+}

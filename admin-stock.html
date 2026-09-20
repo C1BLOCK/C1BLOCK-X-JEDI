@@ -62,7 +62,7 @@ let password="";
 const sizes=["S","M","L","XL","XXL"];
 
 async function api(payload){
-  const r=await fetch('/api/stock',{
+  const r=await fetch('/.netlify/functions/stock',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify(payload)
