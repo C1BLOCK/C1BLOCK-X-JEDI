@@ -1,23 +1,41 @@
-const form = document.getElementById('orderForm');
-const payBtn = document.getElementById('payBtn');
-const errorBox = document.getElementById('orderError');
+const form = document.getElementById("orderForm");
 
-const versionInput = document.getElementById('version');
-const sizeInput = document.getElementById('size');
-const quantityInput = document.getElementById('quantity');
+const payBtn = document.getElementById("payBtn");
 
-const quantityOut = document.getElementById('quantityOut');
-const total = document.getElementById('total');
-const sizeHint = document.getElementById('sizeHint');
+const errorBox = document.getElementById("orderError");
+
+const versionInput = document.getElementById("version");
+
+const sizeInput = document.getElementById("size");
+
+const quantityInput = document.getElementById("quantity");
+
+const total = document.getElementById("total");
+
 
 const prices = {
-  30: 30,
-  50: 50
+  "30": 30,
+  "50": 50
 };
 
-let selectedVersion = '30';
-let selectedSize = '';
-let quantity = 1;
+
+let stock = {
+  "30": {
+    S: 0,
+    M: 0,
+    L: 0,
+    XL: 0,
+    XXL: 0
+  },
+
+  "50": {
+    S: 0,
+    M: 0,
+    L: 0,
+    XL: 0,
+    XXL: 0
+  }
+};
 
 
 /* =========================
@@ -25,278 +43,441 @@ let quantity = 1;
 ========================= */
 
 function updateTotal() {
+
+  const version = versionInput.value || "30";
+
+  let quantity = parseInt(
+    quantityInput.value,
+    10
+  );
+
+  if (!Number.isFinite(quantity) || quantity < 1) {
+    quantity = 1;
+    quantityInput.value = 1;
+  }
+
+  if (quantity > 5) {
+    quantity = 5;
+    quantityInput.value = 5;
+  }
+
   total.textContent =
-    `€${prices[selectedVersion] * quantity}`;
+    `€${prices[version] * quantity}`;
 }
 
 
 /* =========================
-   VERSIONE 30€ / 50€
+   NORMALIZZA STOCK
 ========================= */
 
-document.querySelectorAll('.variant').forEach(button => {
+function normalizeStock(data) {
 
-  button.addEventListener('click', () => {
+  const empty = {
+    "30": {
+      S: 0,
+      M: 0,
+      L: 0,
+      XL: 0,
+      XXL: 0
+    },
 
-    selectedVersion =
-      button.dataset.version;
+    "50": {
+      S: 0,
+      M: 0,
+      L: 0,
+      XL: 0,
+      XXL: 0
+    }
+  };
 
-    versionInput.value =
-      selectedVersion;
 
-    document
-      .querySelectorAll('.variant')
-      .forEach(item => {
+  if (!data || typeof data !== "object") {
+    return empty;
+  }
 
-        const selected =
-          item === button;
 
-        item.classList.toggle(
-          'selected',
-          selected
-        );
+  const source =
+    data.stock &&
+    typeof data.stock === "object"
+      ? data.stock
+      : data;
 
-        item.setAttribute(
-          'aria-pressed',
-          String(selected)
-        );
 
-      });
+  for (const version of ["30", "50"]) {
 
-    updateTotal();
+    if (
+      !source[version] ||
+      typeof source[version] !== "object"
+    ) {
+      continue;
+    }
 
-  });
 
-});
+    for (const size of ["S", "M", "L", "XL", "XXL"]) {
+
+      const value =
+        Number(source[version][size]);
+
+
+      if (
+        Number.isFinite(value) &&
+        value >= 0
+      ) {
+
+        empty[version][size] =
+          Math.floor(value);
+
+      }
+
+    }
+
+  }
+
+
+  return empty;
+}
 
 
 /* =========================
-   TAGLIA
+   AGGIORNA TAGLIE
 ========================= */
 
-document.querySelectorAll('.size').forEach(button => {
+function updateSizes() {
 
-  button.addEventListener('click', () => {
+  const version =
+    String(versionInput.value);
 
-    selectedSize =
-      button.dataset.size;
 
-    sizeInput.value =
-      selectedSize;
+  const available =
+    stock[version] || {};
 
-    document
-      .querySelectorAll('.size')
-      .forEach(item => {
 
-        item.classList.toggle(
-          'selected',
-          item === button
-        );
+  const selected =
+    sizeInput.value;
 
-      });
 
-    sizeHint.textContent =
-      `TAGLIA SELEZIONATA: ${selectedSize}`;
+  [...sizeInput.options].forEach(option => {
+
+    const size =
+      option.value.trim().toUpperCase();
+
+
+    if (!size) {
+      return;
+    }
+
+
+    const quantity =
+      Number(available[size] || 0);
+
+
+    if (quantity <= 0) {
+
+      option.disabled = true;
+
+      option.textContent =
+        `${size} — SOLD OUT`;
+
+    } else {
+
+      option.disabled = false;
+
+      option.textContent =
+        size;
+
+    }
 
   });
 
-});
+
+  if (
+    selected &&
+    Number(available[selected] || 0) <= 0
+  ) {
+
+    sizeInput.value = "";
+
+  }
+
+}
+
+
+/* =========================
+   CARICA STOCK
+========================= */
+
+async function loadStock() {
+
+  try {
+
+    const response =
+      await fetch(
+        "/api/stock",
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache"
+          }
+        }
+      );
+
+
+    if (!response.ok) {
+
+      console.error(
+        "Errore caricamento stock:",
+        response.status
+      );
+
+      return;
+
+    }
+
+
+    const data =
+      await response.json();
+
+
+    console.log(
+      "STOCK:",
+      data
+    );
+
+
+    stock =
+      normalizeStock(data);
+
+
+    updateSizes();
+
+
+  } catch (error) {
+
+    console.error(
+      "Errore stock:",
+      error
+    );
+
+  }
+
+}
+
+
+/* =========================
+   CAMBIO TIPO MAGLIA
+========================= */
+
+versionInput.addEventListener(
+  "change",
+  () => {
+
+    sizeInput.value = "";
+
+    updateSizes();
+
+    updateTotal();
+
+  }
+);
+
+
+/* =========================
+   CAMBIO TAGLIA
+========================= */
+
+sizeInput.addEventListener(
+  "change",
+  () => {
+
+    const version =
+      versionInput.value;
+
+    const size =
+      sizeInput.value;
+
+
+    if (!size) {
+      return;
+    }
+
+
+    const available =
+      Number(
+        stock?.[version]?.[size] || 0
+      );
+
+
+    if (available <= 0) {
+
+      sizeInput.value = "";
+
+      alert(
+        "Questa taglia è esaurita."
+      );
+
+    }
+
+  }
+);
 
 
 /* =========================
    QUANTITÀ
 ========================= */
 
-document
-  .getElementById('minus')
-  .addEventListener('click', () => {
+quantityInput.addEventListener(
+  "input",
+  () => {
 
-    quantity =
-      Math.max(1, quantity - 1);
-
-    quantityInput.value =
-      quantity;
-
-    quantityOut.value =
-      quantity;
-
-    quantityOut.textContent =
-      quantity;
-
-    updateTotal();
-
-  });
-
-
-document
-  .getElementById('plus')
-  .addEventListener('click', () => {
-
-    quantity =
-      Math.min(5, quantity + 1);
-
-    quantityInput.value =
-      quantity;
-
-    quantityOut.value =
-      quantity;
-
-    quantityOut.textContent =
-      quantity;
-
-    updateTotal();
-
-  });
-
-
-/* =========================
-   IMMAGINI PRODOTTO
-========================= */
-
-document.querySelectorAll('.thumb').forEach(button => {
-
-  button.addEventListener('click', () => {
-
-    const image =
-      document.getElementById(
-        'productImage'
+    let value =
+      parseInt(
+        quantityInput.value,
+        10
       );
 
-    image.src =
-      button.dataset.image;
 
-    image.alt =
-      button.dataset.alt;
+    if (!Number.isFinite(value)) {
+      value = 1;
+    }
 
-    document
-      .querySelectorAll('.thumb')
-      .forEach(item => {
 
-        const selected =
-          item === button;
+    if (value < 1) {
+      value = 1;
+    }
 
-        item.classList.toggle(
-          'active',
-          selected
-        );
 
-        item.setAttribute(
-          'aria-selected',
-          String(selected)
-        );
+    if (value > 5) {
+      value = 5;
+    }
 
-      });
 
-  });
+    quantityInput.value = value;
 
-});
+    updateTotal();
+
+  }
+);
 
 
 /* =========================
-   PAGAMENTO STRIPE
+   INVIO ORDINE
 ========================= */
 
 form.addEventListener(
-  'submit',
+  "submit",
   async event => {
 
     event.preventDefault();
 
-    errorBox.hidden = true;
 
-    /* Controllo taglia */
+    errorBox.style.display = "none";
 
-    if (!selectedSize) {
+
+    const version =
+      versionInput.value;
+
+
+    const size =
+      sizeInput.value;
+
+
+    const quantity =
+      parseInt(
+        quantityInput.value,
+        10
+      );
+
+
+    if (!size) {
 
       errorBox.textContent =
-        'Seleziona una taglia prima di continuare.';
+        "Seleziona una taglia.";
 
-      errorBox.hidden = false;
+      errorBox.style.display =
+        "block";
 
       return;
+
     }
 
 
-    /* Controllo form */
+    const available =
+      Number(
+        stock?.[version]?.[size] || 0
+      );
+
+
+    if (available <= 0) {
+
+      errorBox.textContent =
+        "La taglia selezionata è esaurita.";
+
+      errorBox.style.display =
+        "block";
+
+      updateSizes();
+
+      return;
+
+    }
+
+
+    if (quantity > available) {
+
+      errorBox.textContent =
+        `Disponibilità massima: ${available}`;
+
+      errorBox.style.display =
+        "block";
+
+      return;
+
+    }
+
 
     if (!form.checkValidity()) {
 
       form.reportValidity();
 
       return;
+
     }
 
-
-    /* Disabilita pulsante */
 
     payBtn.disabled = true;
 
     payBtn.textContent =
-      'APERTURA PAGAMENTO…';
+      "APERTURA PAGAMENTO…";
 
 
     try {
 
-      const formData =
+      const data =
         Object.fromEntries(
           new FormData(form).entries()
         );
 
 
-      /*
-       * Nomi compatibili
-       * con server.js
-       */
+      data.version =
+        version;
 
-      const data = {
+      data.size =
+        size;
 
-        versione:
-          selectedVersion,
+      data.quantity =
+        String(quantity);
 
-        taglia:
-          selectedSize,
-
-        quantita:
-          String(quantity),
-
-        nome:
-          formData.nome || '',
-
-        cognome:
-          formData.cognome || '',
-
-        telefono:
-          formData.telefono || '',
-
-        email:
-          formData.email || '',
-
-        indirizzo:
-          formData.indirizzo || '',
-
-        cap:
-          formData.cap || '',
-
-        citta:
-          formData.citta || '',
-
-        note:
-          formData.note || ''
-
-      };
-
-
-      /* Richiesta al server */
 
       const response =
         await fetch(
-          '/create-checkout-session',
+          "/api/create-checkout",
           {
-            method: 'POST',
+            method: "POST",
 
             headers: {
-              'Content-Type':
-                'application/json'
+              "Content-Type":
+                "application/json"
             },
 
             body:
@@ -311,8 +492,6 @@ form.addEventListener(
           .catch(() => ({}));
 
 
-      /* Controllo risposta */
-
       if (
         !response.ok ||
         !payload.url
@@ -320,13 +499,11 @@ form.addEventListener(
 
         throw new Error(
           payload.error ||
-          'Impossibile avviare il pagamento.'
+          "Impossibile avviare il pagamento."
         );
 
       }
 
-
-      /* Vai a Stripe */
 
       window.location.assign(
         payload.url
@@ -336,18 +513,18 @@ form.addEventListener(
     } catch (error) {
 
       console.error(
-        'ERRORE PAGAMENTO:',
+        "Errore pagamento:",
         error
       );
 
 
       errorBox.textContent =
         error.message ||
-        'Errore durante il pagamento.';
+        "Errore durante il pagamento.";
 
 
-      errorBox.hidden =
-        false;
+      errorBox.style.display =
+        "block";
 
 
       payBtn.disabled =
@@ -355,7 +532,7 @@ form.addEventListener(
 
 
       payBtn.textContent =
-        'ACQUISTA ORA';
+        "PAGA CON STRIPE →";
 
     }
 
@@ -367,16 +544,6 @@ form.addEventListener(
    AVVIO
 ========================= */
 
-quantityInput.value =
-  quantity;
-
-quantityOut.value =
-  quantity;
-
-quantityOut.textContent =
-  quantity;
-
-versionInput.value =
-  selectedVersion;
-
 updateTotal();
+
+loadStock();
