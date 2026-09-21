@@ -1,78 +1,57 @@
-# C1BLOCK X JEDI — Netlify Ready
+# C1BLOCK X JEDI — Cloudflare Pages launch
 
-Versione rifatta con grafica ispirata al riferimento Emergent fornito: nero, bianco, oro, header fisso, hero fotografico, galleria prodotto, selezione versione/taglia/quantità, manifesto Calabria e checkout Stripe.
+Pacchetto per Cloudflare Pages Advanced Mode.
 
-## 1. Cosa è stato controllato
+## Contenuto
+- `index.html` pagina di lancio e checkout
+- `style.css` grafica
+- `maglia-c1block-x-jedi.png` prodotto
+- `chiaravalle-centrale-bg.jpg` sfondo Calabria
+- `thank-you.html` pagina dopo il pagamento
+- `admin-stock.html` pannello privato stock
+- `_worker.js` backend Cloudflare Pages: Stripe, D1, stock, Telegram
+- `schema.sql` struttura e stock iniziale D1
 
-- Frontend → `/api/create-checkout`
-- Redirect Netlify `/api/*` → Functions
-- Stripe Checkout server-side
-- `STRIPE_SECRET_KEY` solo lato server
-- Webhook Stripe con verifica firma
-- Stock persistente su Netlify Blobs
-- Prenotazione stock prima della creazione del checkout
-- Ripristino stock su sessione Stripe scaduta o pagamento async fallito
-- Protezione da race condition con ETag
-- Telegram inviato solo dopo conferma pagamento
-- Endpoint health senza esposizione delle quantità
-- Endpoint admin stock protetto da `ADMIN_STOCK_KEY`
-- Backend interamente ESM, senza `require()`
-- Caso di errore dopo la creazione della Checkout Session: la sessione viene fatta scadere e lo stock viene rilasciato
+## Architettura
+Il magazzino è unico per taglia. Il pacchetto usa tabelle D1 con nomi dedicati (`inventory`, `c1_reservations`, `c1_orders`) per non entrare in conflitto con eventuali tabelle create dai vecchi pacchetti. La scelta 30€ o 50€ cambia solo il prezzo e la firma, non crea una seconda quantità di maglie.
 
-## 2. Variabili Netlify
+Stock iniziale:
+- S 15
+- M 20
+- L 15
+- XL 5
+- XXL 3
 
-Obbligatorie in Production:
+Il cliente vede solo la disponibilità della taglia, non il numero di pezzi.
 
-- `STRIPE_SECRET_KEY` = `sk_test_...` per i test, poi `sk_live_...`
-- `STRIPE_WEBHOOK_SECRET` = `whsec_...` del webhook corretto
-- `ADMIN_STOCK_KEY` = chiave lunga casuale
+Durante il checkout la quantità viene riservata per 30 minuti. Se Stripe non crea il pagamento, la quantità viene restituita. Se il checkout scade, il webhook può restituire immediatamente la quantità. Il pagamento completato segna la prenotazione come pagata. Gli eventi Stripe duplicati non generano un secondo ordine Telegram.
 
-Opzionali:
-
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-- `SITE_URL`
-
-Non inserire mai queste chiavi in `index.html`, `app.js` o GitHub.
-
-## 3. Prima del deploy
-
-1. Carica il contenuto dello ZIP nel repository collegato a Netlify.
-2. Controlla che Node sia 22.
-3. Inserisci le variabili Production.
-4. Deploy.
-5. Apri `https://TUO-DOMINIO/api/health`.
-6. Deve restituire `ok: true`, `stripeConfigured: true` e, se configurato, `telegramConfigured: true`.
-7. Configura in Stripe il webhook:
-   `https://TUO-DOMINIO/.netlify/functions/stripe-webhook`
-8. Attiva almeno questi eventi:
+## Configurazione Cloudflare, una sola volta
+1. Nel progetto Pages vai in `Settings > Bindings` e collega un database D1 con binding name `DB`.
+2. Esegui tutto il contenuto di `schema.sql` nel database D1.
+3. Vai in `Settings > Variables and Secrets` e crea come Secret:
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+   - `TELEGRAM_BOT_TOKEN`
+   - `TELEGRAM_CHAT_ID`
+   - `ADMIN_PASSWORD`
+4. Il webhook Stripe deve puntare a:
+   `https://TUO-DOMINIO/api/stripe-webhook`
+5. Evento webhook richiesto:
    - `checkout.session.completed`
-   - `checkout.session.async_payment_succeeded`
    - `checkout.session.expired`
-   - `checkout.session.async_payment_failed`
-9. Fai un solo acquisto in Stripe TEST MODE.
-10. Controlla Stripe, Netlify Function logs, stock e Telegram.
-11. Solo quando tutto passa, sostituisci le chiavi test con quelle live.
 
-## 4. Stock iniziale
+## Test tecnico
+Apri:
+`https://TUO-DOMINIO/api/health`
 
-30€ e 50€ hanno entrambi:
+Quando tutto è collegato deve restituire JSON con `ready: true`.
 
-- S: 15
-- M: 20
-- L: 15
-- XL: 5
-- XXL: 3
+## Pannello stock
+Apri:
+`https://TUO-DOMINIO/admin-stock.html`
 
-Il cliente non vede il numero di pezzi disponibili.
+Inserisci `ADMIN_PASSWORD`, modifica le quantità e salva.
 
-## 5. Nota sulle immagini
-
-Le immagini presenti in `assets/` sono state ricavate dalle immagini di riferimento fornite nella conversazione, così lo ZIP è immediatamente visualizzabile. Se hai i file originali ad alta risoluzione del servizio fotografico, sostituisci `hero.jpg`, `shirt-front.jpg`, `shirt-back.jpg` e `calabria.jpg` mantenendo gli stessi nomi.
-
-## 6. Test locale
-
-`npm install`
-`node tests/smoke.mjs`
-
-Il test controlla struttura, ESM, Stripe, webhook, stock, Telegram e chiamata frontend.
+## Deploy
+Questo pacchetto usa `_worker.js` in Advanced Mode. Il file deve rimanere nella root del pacchetto insieme a `index.html`, immagini e CSS.
