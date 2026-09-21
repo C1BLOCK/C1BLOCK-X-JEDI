@@ -1,18 +1,35 @@
-const express = require("express");
-const path = require("path");
-const fs = require("fs");
-const Stripe = require("stripe");
+import express from "express";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import Stripe from "stripe";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
 const PORT = process.env.PORT || 8080;
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
+const ADMIN_PASSWORD =
+  process.env.ADMIN_PASSWORD || "";
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
+const STRIPE_SECRET_KEY =
+  process.env.STRIPE_SECRET_KEY || "";
+
+const STRIPE_WEBHOOK_SECRET =
+  process.env.STRIPE_WEBHOOK_SECRET || "";
+
+const TELEGRAM_BOT_TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN || "";
+
+const TELEGRAM_CHAT_ID =
+  process.env.TELEGRAM_CHAT_ID || "";
+
+
+/* =========================
+   STRIPE
+========================= */
 
 const stripe = STRIPE_SECRET_KEY
   ? new Stripe(STRIPE_SECRET_KEY)
@@ -23,9 +40,22 @@ const stripe = STRIPE_SECRET_KEY
    STOCK
 ========================= */
 
-const stockFile = path.join(__dirname, "data", "stock.json");
+const stockFile =
+  path.join(__dirname, "data", "stock.json");
+
+const versions = ["30", "50"];
+
+const sizes = [
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL"
+];
+
 
 function defaultStock() {
+
   return {
     "30": {
       S: 0,
@@ -34,6 +64,7 @@ function defaultStock() {
       XL: 0,
       XXL: 0
     },
+
     "50": {
       S: 0,
       M: 0,
@@ -42,24 +73,36 @@ function defaultStock() {
       XXL: 0
     }
   };
+
 }
 
 
 function ensureStockFile() {
 
-  const directory = path.dirname(stockFile);
+  const directory =
+    path.dirname(stockFile);
 
   if (!fs.existsSync(directory)) {
-    fs.mkdirSync(directory, {
-      recursive: true
-    });
+
+    fs.mkdirSync(
+      directory,
+      {
+        recursive: true
+      }
+    );
+
   }
+
 
   if (!fs.existsSync(stockFile)) {
 
     fs.writeFileSync(
       stockFile,
-      JSON.stringify(defaultStock(), null, 2)
+      JSON.stringify(
+        defaultStock(),
+        null,
+        2
+      )
     );
 
   }
@@ -73,14 +116,13 @@ function getStock() {
 
   try {
 
-    const data = fs.readFileSync(
-      stockFile,
-      "utf8"
-    );
+    const data =
+      fs.readFileSync(
+        stockFile,
+        "utf8"
+      );
 
-    const stock = JSON.parse(data);
-
-    return stock;
+    return JSON.parse(data);
 
   } catch (error) {
 
@@ -102,27 +144,35 @@ function saveStock(stock) {
 
   fs.writeFileSync(
     stockFile,
-    JSON.stringify(stock, null, 2)
+    JSON.stringify(
+      stock,
+      null,
+      2
+    )
   );
 
 }
 
 
 /* =========================
-   VALIDAZIONE STOCK
+   NORMALIZZA STOCK
 ========================= */
-
-const versions = ["30", "50"];
-const sizes = ["S", "M", "L", "XL", "XXL"];
-
 
 function normalizeStock(data) {
 
-  const stock = defaultStock();
+  const stock =
+    defaultStock();
 
-  if (!data || typeof data !== "object") {
+
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
+
     return stock;
+
   }
+
 
   const source =
     data.stock &&
@@ -137,14 +187,18 @@ function normalizeStock(data) {
       !source[version] ||
       typeof source[version] !== "object"
     ) {
+
       continue;
+
     }
 
 
     for (const size of sizes) {
 
       const value =
-        Number(source[version][size]);
+        Number(
+          source[version][size]
+        );
 
 
       if (
@@ -161,57 +215,8 @@ function normalizeStock(data) {
 
   }
 
+
   return stock;
-
-}
-
-
-/* =========================
-   TELEGRAM
-========================= */
-
-async function sendTelegram(message) {
-
-  if (
-    !TELEGRAM_BOT_TOKEN ||
-    !TELEGRAM_CHAT_ID
-  ) {
-
-    console.log(
-      "Telegram non configurato."
-    );
-
-    return;
-
-  }
-
-
-  try {
-
-    await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-
-        headers: {
-          "Content-Type": "application/json"
-        },
-
-        body: JSON.stringify({
-          chat_id: TELEGRAM_CHAT_ID,
-          text: message
-        })
-      }
-    );
-
-  } catch (error) {
-
-    console.error(
-      "Errore Telegram:",
-      error
-    );
-
-  }
 
 }
 
@@ -222,15 +227,28 @@ async function sendTelegram(message) {
 
 app.post(
   "/api/stripe-webhook",
+
   express.raw({
     type: "application/json"
   }),
+
   async (req, res) => {
+
+    if (!stripe) {
+
+      return res.status(500).json({
+        error:
+          "Stripe non configurato."
+      });
+
+    }
+
 
     if (!STRIPE_WEBHOOK_SECRET) {
 
       return res.status(500).json({
-        error: "STRIPE_WEBHOOK_SECRET non configurato."
+        error:
+          "STRIPE_WEBHOOK_SECRET non configurato."
       });
 
     }
@@ -241,11 +259,12 @@ app.post(
 
     try {
 
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        req.headers["stripe-signature"],
-        STRIPE_WEBHOOK_SECRET
-      );
+      event =
+        stripe.webhooks.constructEvent(
+          req.body,
+          req.headers["stripe-signature"],
+          STRIPE_WEBHOOK_SECRET
+        );
 
     } catch (error) {
 
@@ -275,25 +294,38 @@ app.post(
 
 
       const version =
-        metadata.version;
+        String(
+          metadata.version || ""
+        );
+
 
       const size =
-        metadata.size;
+        String(
+          metadata.size || ""
+        );
+
 
       const quantity =
-        Number(metadata.quantity || 1);
+        Number(
+          metadata.quantity || 1
+        );
 
 
       if (
         versions.includes(version) &&
         sizes.includes(size) &&
+        Number.isInteger(quantity) &&
         quantity > 0
       ) {
 
-        const stock = getStock();
+        const stock =
+          getStock();
+
 
         const current =
-          Number(stock[version][size] || 0);
+          Number(
+            stock[version][size] || 0
+          );
 
 
         stock[version][size] =
@@ -321,12 +353,17 @@ app.post(
           `Taglia: ${size || "-"}`,
           `Quantità: ${quantity}`,
           `Totale: €${(
-            Number(session.amount_total || 0) /
-            100
+            Number(
+              session.amount_total || 0
+            ) / 100
           ).toFixed(2)}`,
           "",
           `Nome: ${metadata.name || "-"}`,
-          `Email: ${metadata.email || session.customer_details?.email || "-"}`,
+          `Email: ${
+            metadata.email ||
+            session.customer_details?.email ||
+            "-"
+          }`,
           `Telefono: ${metadata.phone || "-"}`,
           `Indirizzo: ${metadata.address || "-"}`
         ].join("\n")
@@ -335,12 +372,68 @@ app.post(
     }
 
 
-    res.json({
+    return res.json({
       received: true
     });
 
   }
 );
+
+
+/* =========================
+   TELEGRAM
+========================= */
+
+async function sendTelegram(message) {
+
+  if (
+    !TELEGRAM_BOT_TOKEN ||
+    !TELEGRAM_CHAT_ID
+  ) {
+
+    console.log(
+      "Telegram non configurato."
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    await fetch(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body: JSON.stringify({
+          chat_id:
+            TELEGRAM_CHAT_ID,
+
+          text:
+            message
+        })
+
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Errore Telegram:",
+      error
+    );
+
+  }
+
+}
 
 
 /* =========================
@@ -397,8 +490,7 @@ console.log(
 
 
 /* =========================
-   ADMIN STOCK
-   GET
+   ADMIN STOCK - LOGIN
 ========================= */
 
 app.get(
@@ -406,7 +498,9 @@ app.get(
   (req, res) => {
 
     const password =
-      req.headers["x-admin-password"];
+      req.headers[
+        "x-admin-password"
+      ];
 
 
     if (
@@ -415,7 +509,8 @@ app.get(
     ) {
 
       return res.status(401).json({
-        error: "Password ADMIN non valida."
+        error:
+          "Password ADMIN non valida."
       });
 
     }
@@ -436,8 +531,7 @@ app.get(
 
 
 /* =========================
-   ADMIN STOCK
-   PUT
+   ADMIN STOCK - SALVA
 ========================= */
 
 app.put(
@@ -445,7 +539,9 @@ app.put(
   (req, res) => {
 
     const password =
-      req.headers["x-admin-password"];
+      req.headers[
+        "x-admin-password"
+      ];
 
 
     if (
@@ -454,14 +550,17 @@ app.put(
     ) {
 
       return res.status(401).json({
-        error: "Password ADMIN non valida."
+        error:
+          "Password ADMIN non valida."
       });
 
     }
 
 
     const stock =
-      normalizeStock(req.body);
+      normalizeStock(
+        req.body
+      );
 
 
     saveStock(stock);
@@ -512,22 +611,12 @@ app.post(
       } = req.body;
 
 
-      if (!versions.includes(String(version))) {
-
-        return res.status(400).json({
-          error: "Versione prodotto non valida."
-        });
-
-      }
+      const selectedVersion =
+        String(version || "");
 
 
-      if (!sizes.includes(String(size))) {
-
-        return res.status(400).json({
-          error: "Taglia non valida."
-        });
-
-      }
+      const selectedSize =
+        String(size || "");
 
 
       const qty =
@@ -538,13 +627,42 @@ app.post(
 
 
       if (
+        !versions.includes(
+          selectedVersion
+        )
+      ) {
+
+        return res.status(400).json({
+          error:
+            "Versione prodotto non valida."
+        });
+
+      }
+
+
+      if (
+        !sizes.includes(
+          selectedSize
+        )
+      ) {
+
+        return res.status(400).json({
+          error:
+            "Taglia non valida."
+        });
+
+      }
+
+
+      if (
         !Number.isInteger(qty) ||
         qty < 1 ||
         qty > 5
       ) {
 
         return res.status(400).json({
-          error: "Quantità non valida."
+          error:
+            "Quantità non valida."
         });
 
       }
@@ -556,7 +674,9 @@ app.post(
 
       const available =
         Number(
-          stock[version][size] || 0
+          stock[
+            selectedVersion
+          ][selectedSize] || 0
         );
 
 
@@ -571,7 +691,7 @@ app.post(
 
 
       const price =
-        version === "50"
+        selectedVersion === "50"
           ? 5000
           : 3000;
 
@@ -590,16 +710,19 @@ app.post(
           ],
 
           line_items: [
+
             {
               price_data: {
 
                 currency: "eur",
 
                 product_data: {
+
                   name:
-                    version === "50"
+                    selectedVersion === "50"
                       ? "C1BLOCK X JEDI - Maglia con firma Jedi"
                       : "C1BLOCK X JEDI - Maglia"
+
                 },
 
                 unit_amount:
@@ -607,23 +730,23 @@ app.post(
 
               },
 
-              quantity: qty
+              quantity:
+                qty
 
             }
-          ],
 
+          ],
 
           customer_email:
             email || undefined,
 
-
           metadata: {
 
             version:
-              String(version),
+              selectedVersion,
 
             size:
-              String(size),
+              selectedSize,
 
             quantity:
               String(qty),
@@ -642,7 +765,6 @@ app.post(
 
           },
 
-
           success_url:
             `${baseUrl}/success.html`,
 
@@ -653,7 +775,8 @@ app.post(
 
 
       return res.json({
-        url: session.url
+        url:
+          session.url
       });
 
 
@@ -678,7 +801,7 @@ app.post(
 
 
 /* =========================
-   FILE STATICI
+   FILE DEL SITO
 ========================= */
 
 app.use(
@@ -687,20 +810,28 @@ app.use(
 
 
 /* =========================
-   HEALTH
+   HEALTH CHECK
 ========================= */
 
 app.get(
   "/health",
   (req, res) => {
 
-    res.json({
+    return res.json({
+
       ok: true,
-      stripe: Boolean(STRIPE_SECRET_KEY),
-      telegram: Boolean(
-        TELEGRAM_BOT_TOKEN &&
-        TELEGRAM_CHAT_ID
-      )
+
+      stripe:
+        Boolean(
+          STRIPE_SECRET_KEY
+        ),
+
+      telegram:
+        Boolean(
+          TELEGRAM_BOT_TOKEN &&
+          TELEGRAM_CHAT_ID
+        )
+
     });
 
   }
@@ -708,15 +839,16 @@ app.get(
 
 
 /* =========================
-   404 API
+   API NON TROVATA
 ========================= */
 
 app.use(
   "/api",
   (req, res) => {
 
-    res.status(404).json({
-      error: "Endpoint non trovato."
+    return res.status(404).json({
+      error:
+        "Endpoint non trovato."
     });
 
   }
@@ -724,7 +856,7 @@ app.use(
 
 
 /* =========================
-   AVVIO
+   START
 ========================= */
 
 ensureStockFile();
@@ -741,10 +873,6 @@ app.listen(
 
     console.log(
       `Porta: ${PORT}`
-    );
-
-    console.log(
-      `File statici: ${__dirname}`
     );
 
   }
