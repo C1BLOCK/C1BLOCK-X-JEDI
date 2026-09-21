@@ -82,6 +82,11 @@ async function saveStock(stock) {
   );
 }
 
+
+/* =========================
+   STOCK PUBBLICO
+========================= */
+
 app.get('/api/stock', async (req, res) => {
   try {
     const stock = await readStock();
@@ -119,6 +124,116 @@ app.get('/api/stock', async (req, res) => {
     });
   }
 });
+
+
+/* =========================
+   STOCK ADMIN
+========================= */
+
+/*
+  Legge lo stock completo.
+
+  Questo endpoint serve alla pagina
+  admin.html per vedere le quantità.
+*/
+app.get('/api/admin/stock', async (req, res) => {
+  try {
+    const stock = await readStock();
+
+    res.json(stock);
+
+  } catch (error) {
+    console.error(
+      'ADMIN STOCK GET ERROR:',
+      error
+    );
+
+    res.status(500).json({
+      error: 'Errore caricamento stock'
+    });
+  }
+});
+
+
+/*
+  Salva lo stock modificato
+  dalla pagina admin.html.
+*/
+app.post('/api/admin/stock', async (req, res) => {
+  try {
+    const incoming = req.body;
+
+    if (
+      !incoming ||
+      typeof incoming !== 'object'
+    ) {
+      return res.status(400).json({
+        error: 'Dati stock non validi.'
+      });
+    }
+
+    const sizes = [
+      'S',
+      'M',
+      'L',
+      'XL',
+      'XXL'
+    ];
+
+    const newStock = {
+      '30': {},
+      '50': {}
+    };
+
+    for (const version of ['30', '50']) {
+      for (const size of sizes) {
+        const value = Number(
+          incoming?.[version]?.[size]
+        );
+
+        if (
+          !Number.isInteger(value) ||
+          value < 0
+        ) {
+          return res.status(400).json({
+            error:
+              `Quantità non valida: ${version}€ - ${size}`
+          });
+        }
+
+        newStock[version][size] = value;
+      }
+    }
+
+    await saveStock(newStock);
+
+    console.log(
+      'STOCK AGGIORNATO:',
+      newStock
+    );
+
+    res.json({
+      success: true,
+      message: 'Stock aggiornato.',
+      stock: newStock
+    });
+
+  } catch (error) {
+    console.error(
+      'ADMIN STOCK SAVE ERROR:',
+      error
+    );
+
+    res.status(500).json({
+      error: 'Errore salvataggio stock'
+    });
+  }
+});
+
+
+/* =========================
+   STRIPE CHECKOUT
+========================= */
 
 app.post(
   '/create-checkout-session',
@@ -284,12 +399,11 @@ app.post(
   }
 );
 
-/*
- * Pagina principale.
- * Usiamo app.use invece di app.get('*')
- * perché la versione di Express installata
- * non accetta più la rotta '*'.
- */
+
+/* =========================
+   PAGINA PRINCIPALE
+========================= */
+
 app.use((req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({
@@ -305,6 +419,11 @@ app.use((req, res) => {
     )
   );
 });
+
+
+/* =========================
+   AVVIO SERVER
+========================= */
 
 app.listen(
   PORT,
