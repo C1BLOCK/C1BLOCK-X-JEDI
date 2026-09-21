@@ -1,11 +1,11 @@
+import 'dotenv/config';
+import express from 'express';
+import Stripe from 'stripe';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
-console.log("STRIPE_SECRET_KEY:", !!process.env.STRIPE_SECRET_KEY);
-console.log("CHIAVE SEGRETA A STRISCIA:", !!process.env["CHIAVE SEGRETA A STRISCIA"]);
-
-const stripe = new Stripe(
-  process.env.STRIPE_SECRET_KEY ||
-  process.env["CHIAVE SEGRETA A STRISCIA"]
-);import 'dotenv/config';
 import express from 'express';
 import Stripe from 'stripe';
 import fs from 'node:fs/promises';
