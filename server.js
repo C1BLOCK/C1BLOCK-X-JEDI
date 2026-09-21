@@ -18,24 +18,36 @@ const stripeKey =
   process.env.STRIPE_SECRET_KEY ||
   process.env['CHIAVE SEGRETA A STRISCIA'];
 
-console.log('STRIPE_SECRET_KEY:', Boolean(process.env.STRIPE_SECRET_KEY));
+console.log(
+  'STRIPE_SECRET_KEY:',
+  Boolean(process.env.STRIPE_SECRET_KEY)
+);
+
 console.log(
   'CHIAVE SEGRETA A STRISCIA:',
   Boolean(process.env['CHIAVE SEGRETA A STRISCIA'])
 );
 
 if (!stripeKey) {
-  console.error('ERRORE: chiave segreta Stripe non configurata.');
+  console.error(
+    'ERRORE: chiave segreta Stripe non configurata.'
+  );
 }
 
-const stripe = stripeKey ? new Stripe(stripeKey) : null;
+const stripe = stripeKey
+  ? new Stripe(stripeKey)
+  : null;
 
 app.use(express.json());
 app.use(express.static(__dirname));
 
 async function readStock() {
   try {
-    const data = await fs.readFile(STOCK_FILE, 'utf8');
+    const data = await fs.readFile(
+      STOCK_FILE,
+      'utf8'
+    );
+
     return JSON.parse(data);
   } catch {
     return {
@@ -58,7 +70,11 @@ async function readStock() {
 }
 
 async function saveStock(stock) {
-  await fs.mkdir(path.dirname(STOCK_FILE), { recursive: true });
+  await fs.mkdir(
+    path.dirname(STOCK_FILE),
+    { recursive: true }
+  );
+
   await fs.writeFile(
     STOCK_FILE,
     JSON.stringify(stock, null, 2),
@@ -76,142 +92,226 @@ app.get('/api/stock', async (req, res) => {
     };
 
     for (const version of ['30', '50']) {
-      for (const size of ['S', 'M', 'L', 'XL', 'XXL']) {
+      for (const size of [
+        'S',
+        'M',
+        'L',
+        'XL',
+        'XXL'
+      ]) {
         available[version][size] =
-          Number(stock?.[version]?.[size] || 0) > 0;
+          Number(
+            stock?.[version]?.[size] || 0
+          ) > 0;
       }
     }
 
     res.json(available);
+
   } catch (error) {
-    console.error('STOCK ERROR:', error);
-    res.status(500).json({ error: 'Errore stock' });
+    console.error(
+      'STOCK ERROR:',
+      error
+    );
+
+    res.status(500).json({
+      error: 'Errore stock'
+    });
   }
 });
 
-app.post('/create-checkout-session', async (req, res) => {
-  try {
-    if (!stripe) {
-      return res.status(500).json({
-        error: 'Stripe non configurato sul server.'
-      });
-    }
+app.post(
+  '/create-checkout-session',
+  async (req, res) => {
+    try {
+      if (!stripe) {
+        return res.status(500).json({
+          error:
+            'Stripe non configurato sul server.'
+        });
+      }
 
-    const {
-      versione,
-      taglia,
-      quantita,
-      nome,
-      cognome,
-      telefono,
-      email,
-      indirizzo,
-      cap,
-      citta,
-      note
-    } = req.body || {};
+      const {
+        versione,
+        taglia,
+        quantita,
+        nome,
+        cognome,
+        telefono,
+        email,
+        indirizzo,
+        cap,
+        citta,
+        note
+      } = req.body || {};
 
-    const version = String(versione || '').includes('50')
-      ? '50'
-      : '30';
+      const version =
+        String(versione || '').includes('50')
+          ? '50'
+          : '30';
 
-    const size = String(taglia || '').trim().toUpperCase();
-    const quantity = Number.parseInt(quantita, 10);
+      const size =
+        String(taglia || '')
+          .trim()
+          .toUpperCase();
 
-    if (!['S', 'M', 'L', 'XL', 'XXL'].includes(size)) {
-      return res.status(400).json({
-        error: 'Taglia non valida.'
-      });
-    }
+      const quantity =
+        Number.parseInt(
+          quantita,
+          10
+        );
 
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) {
-      return res.status(400).json({
-        error: 'Quantità non valida.'
-      });
-    }
+      if (
+        ![
+          'S',
+          'M',
+          'L',
+          'XL',
+          'XXL'
+        ].includes(size)
+      ) {
+        return res.status(400).json({
+          error: 'Taglia non valida.'
+        });
+      }
 
-    const prices = {
-      '30': 3000,
-      '50': 5000
-    };
+      if (
+        !Number.isInteger(quantity) ||
+        quantity < 1 ||
+        quantity > 10
+      ) {
+        return res.status(400).json({
+          error: 'Quantità non valida.'
+        });
+      }
 
-    const stock = await readStock();
-    const currentStock = Number(stock?.[version]?.[size] || 0);
+      const prices = {
+        '30': 3000,
+        '50': 5000
+      };
 
-    if (currentStock < quantity) {
-      return res.status(400).json({
-        error: 'Prodotto non disponibile.'
-      });
-    }
+      const stock =
+        await readStock();
 
-    const origin =
-      process.env.PUBLIC_URL ||
-      `http://localhost:${PORT}`;
+      const currentStock =
+        Number(
+          stock?.[version]?.[size] || 0
+        );
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+      if (currentStock < quantity) {
+        return res.status(400).json({
+          error:
+            'Prodotto non disponibile.'
+        });
+      }
 
-      line_items: [
-        {
-          price_data: {
-            currency: 'eur',
-            product_data: {
-              name:
-                version === '50'
-                  ? 'C1BLOCK X JEDI - T-Shirt con firma'
-                  : 'C1BLOCK X JEDI - T-Shirt'
-            },
-            unit_amount: prices[version]
+      const origin =
+        process.env.PUBLIC_URL ||
+        `http://localhost:${PORT}`;
+
+      const session =
+        await stripe.checkout.sessions.create({
+          mode: 'payment',
+
+          line_items: [
+            {
+              price_data: {
+                currency: 'eur',
+
+                product_data: {
+                  name:
+                    version === '50'
+                      ? 'C1BLOCK X JEDI - T-Shirt con firma'
+                      : 'C1BLOCK X JEDI - T-Shirt'
+                },
+
+                unit_amount:
+                  prices[version]
+              },
+
+              quantity
+            }
+          ],
+
+          customer_email:
+            email || undefined,
+
+          metadata: {
+            versione: `${version}€`,
+            taglia: size,
+            quantita:
+              String(quantity),
+            nome:
+              String(nome || ''),
+            cognome:
+              String(cognome || ''),
+            telefono:
+              String(telefono || ''),
+            email:
+              String(email || ''),
+            indirizzo:
+              String(indirizzo || ''),
+            cap:
+              String(cap || ''),
+            citta:
+              String(citta || ''),
+            note:
+              String(note || '')
           },
-          quantity
-        }
-      ],
 
-      customer_email: email || undefined,
+          success_url:
+            `${origin}/thank-you.html`,
 
-      metadata: {
-        versione: `${version}€`,
-        taglia: size,
-        quantita: String(quantity),
-        nome: String(nome || ''),
-        cognome: String(cognome || ''),
-        telefono: String(telefono || ''),
-        email: String(email || ''),
-        indirizzo: String(indirizzo || ''),
-        cap: String(cap || ''),
-        citta: String(citta || ''),
-        note: String(note || '')
-      },
+          cancel_url:
+            `${origin}/index.html`
+        });
 
-      success_url: `${origin}/thank-you.html`,
-      cancel_url: `${origin}/index.html`
-    });
+      return res.json({
+        url: session.url
+      });
 
-    return res.json({
-      url: session.url
-    });
+    } catch (error) {
+      console.error(
+        'STRIPE CHECKOUT ERROR:',
+        error
+      );
 
-  } catch (error) {
-    console.error('STRIPE CHECKOUT ERROR:', error);
-
-    return res.status(500).json({
-      error: 'Impossibile avviare il pagamento.'
-    });
+      return res.status(500).json({
+        error:
+          'Impossibile avviare il pagamento.'
+      });
+    }
   }
-});
+);
 
-app.get('*', async (req, res) => {
+/*
+ * Pagina principale.
+ * Usiamo app.use invece di app.get('*')
+ * perché la versione di Express installata
+ * non accetta più la rotta '*'.
+ */
+app.use((req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({
-      error: 'Endpoint non trovato'
+      error:
+        'Endpoint non trovato'
     });
   }
 
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(
-    `C1BLOCK X JEDI avviato sulla porta ${PORT}`
+  res.sendFile(
+    path.join(
+      __dirname,
+      'index.html'
+    )
   );
 });
+
+app.listen(
+  PORT,
+  '0.0.0.0',
+  () => {
+    console.log(
+      `C1BLOCK X JEDI avviato sulla porta ${PORT}`
+    );
+  }
+);
