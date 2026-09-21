@@ -1,23 +1,19 @@
 const form = document.getElementById("orderForm");
-
 const payBtn = document.getElementById("payBtn");
-
 const errorBox = document.getElementById("orderError");
 
 const versionInput = document.getElementById("version");
-
 const sizeInput = document.getElementById("size");
-
 const quantityInput = document.getElementById("quantity");
-
 const total = document.getElementById("total");
-
 
 const prices = {
   "30": 30,
   "50": 50
 };
 
+const versions = ["30", "50"];
+const sizes = ["S", "M", "L", "XL", "XXL"];
 
 let stock = {
   "30": {
@@ -27,7 +23,6 @@ let stock = {
     XL: 0,
     XXL: 0
   },
-
   "50": {
     S: 0,
     M: 0,
@@ -44,21 +39,20 @@ let stock = {
 
 function updateTotal() {
 
-  const version = versionInput.value || "30";
+  const version =
+    versionInput.value || "30";
 
-  let quantity = parseInt(
-    quantityInput.value,
-    10
-  );
+  let quantity =
+    parseInt(quantityInput.value, 10);
 
   if (!Number.isFinite(quantity) || quantity < 1) {
     quantity = 1;
-    quantityInput.value = 1;
+    quantityInput.value = "1";
   }
 
   if (quantity > 5) {
     quantity = 5;
-    quantityInput.value = 5;
+    quantityInput.value = "5";
   }
 
   total.textContent =
@@ -72,7 +66,7 @@ function updateTotal() {
 
 function normalizeStock(data) {
 
-  const empty = {
+  const result = {
     "30": {
       S: 0,
       M: 0,
@@ -90,11 +84,9 @@ function normalizeStock(data) {
     }
   };
 
-
   if (!data || typeof data !== "object") {
-    return empty;
+    return result;
   }
-
 
   const source =
     data.stock &&
@@ -102,8 +94,7 @@ function normalizeStock(data) {
       ? data.stock
       : data;
 
-
-  for (const version of ["30", "50"]) {
+  for (const version of versions) {
 
     if (
       !source[version] ||
@@ -112,29 +103,22 @@ function normalizeStock(data) {
       continue;
     }
 
-
-    for (const size of ["S", "M", "L", "XL", "XXL"]) {
+    for (const size of sizes) {
 
       const value =
         Number(source[version][size]);
-
 
       if (
         Number.isFinite(value) &&
         value >= 0
       ) {
-
-        empty[version][size] =
+        result[version][size] =
           Math.floor(value);
-
       }
-
     }
-
   }
 
-
-  return empty;
+  return result;
 }
 
 
@@ -145,31 +129,28 @@ function normalizeStock(data) {
 function updateSizes() {
 
   const version =
-    String(versionInput.value);
-
+    String(versionInput.value || "30");
 
   const available =
     stock[version] || {};
 
-
-  const selected =
+  const currentValue =
     sizeInput.value;
 
 
-  [...sizeInput.options].forEach(option => {
+  for (const option of sizeInput.options) {
 
     const size =
-      option.value.trim().toUpperCase();
-
+      String(option.value || "")
+        .trim()
+        .toUpperCase();
 
     if (!size) {
-      return;
+      continue;
     }
-
 
     const quantity =
       Number(available[size] || 0);
-
 
     if (quantity <= 0) {
 
@@ -184,21 +165,23 @@ function updateSizes() {
 
       option.textContent =
         size;
-
     }
-
-  });
+  }
 
 
   if (
-    selected &&
-    Number(available[selected] || 0) <= 0
+    currentValue &&
+    Number(available[currentValue] || 0) > 0
   ) {
+
+    sizeInput.value =
+      currentValue;
+
+  } else {
 
     sizeInput.value = "";
 
   }
-
 }
 
 
@@ -222,73 +205,63 @@ async function loadStock() {
         }
       );
 
-
     if (!response.ok) {
 
       console.error(
-        "Errore caricamento stock:",
+        "Errore stock:",
         response.status
       );
 
       return;
-
     }
-
 
     const data =
       await response.json();
 
-
     console.log(
-      "STOCK:",
+      "STOCK CARICATO:",
       data
     );
-
 
     stock =
       normalizeStock(data);
 
-
     updateSizes();
-
 
   } catch (error) {
 
     console.error(
-      "Errore stock:",
+      "Errore caricamento stock:",
       error
     );
-
   }
-
 }
 
 
 /* =========================
-   CAMBIO TIPO MAGLIA
+   TIPO MAGLIA
 ========================= */
 
 versionInput.addEventListener(
   "change",
-  () => {
+  function () {
 
     sizeInput.value = "";
 
     updateSizes();
 
     updateTotal();
-
   }
 );
 
 
 /* =========================
-   CAMBIO TAGLIA
+   TAGLIA
 ========================= */
 
 sizeInput.addEventListener(
   "change",
-  () => {
+  function () {
 
     const version =
       versionInput.value;
@@ -296,28 +269,30 @@ sizeInput.addEventListener(
     const size =
       sizeInput.value;
 
-
     if (!size) {
       return;
     }
-
 
     const available =
       Number(
         stock?.[version]?.[size] || 0
       );
 
-
     if (available <= 0) {
 
       sizeInput.value = "";
 
-      alert(
-        "Questa taglia è esaurita."
-      );
+      errorBox.textContent =
+        "Questa taglia è esaurita.";
 
+      errorBox.style.display =
+        "block";
+
+      return;
     }
 
+    errorBox.style.display =
+      "none";
   }
 );
 
@@ -328,7 +303,7 @@ sizeInput.addEventListener(
 
 quantityInput.addEventListener(
   "input",
-  () => {
+  function () {
 
     let value =
       parseInt(
@@ -336,26 +311,22 @@ quantityInput.addEventListener(
         10
       );
 
-
     if (!Number.isFinite(value)) {
       value = 1;
     }
-
 
     if (value < 1) {
       value = 1;
     }
 
-
     if (value > 5) {
       value = 5;
     }
 
-
-    quantityInput.value = value;
+    quantityInput.value =
+      String(value);
 
     updateTotal();
-
   }
 );
 
@@ -366,27 +337,37 @@ quantityInput.addEventListener(
 
 form.addEventListener(
   "submit",
-  async event => {
+  async function (event) {
 
     event.preventDefault();
 
-
-    errorBox.style.display = "none";
+    errorBox.style.display =
+      "none";
 
 
     const version =
       versionInput.value;
 
-
     const size =
       sizeInput.value;
-
 
     const quantity =
       parseInt(
         quantityInput.value,
         10
       );
+
+
+    if (!version) {
+
+      errorBox.textContent =
+        "Seleziona il tipo di maglia.";
+
+      errorBox.style.display =
+        "block";
+
+      return;
+    }
 
 
     if (!size) {
@@ -398,7 +379,6 @@ form.addEventListener(
         "block";
 
       return;
-
     }
 
 
@@ -419,7 +399,6 @@ form.addEventListener(
       updateSizes();
 
       return;
-
     }
 
 
@@ -432,7 +411,6 @@ form.addEventListener(
         "block";
 
       return;
-
     }
 
 
@@ -441,11 +419,11 @@ form.addEventListener(
       form.reportValidity();
 
       return;
-
     }
 
 
-    payBtn.disabled = true;
+    payBtn.disabled =
+      true;
 
     payBtn.textContent =
       "APERTURA PAGAMENTO…";
@@ -501,7 +479,6 @@ form.addEventListener(
           payload.error ||
           "Impossibile avviare il pagamento."
         );
-
       }
 
 
@@ -522,7 +499,6 @@ form.addEventListener(
         error.message ||
         "Errore durante il pagamento.";
 
-
       errorBox.style.display =
         "block";
 
@@ -530,12 +506,29 @@ form.addEventListener(
       payBtn.disabled =
         false;
 
-
       payBtn.textContent =
         "PAGA CON STRIPE →";
-
     }
+  }
+);
 
+
+/* =========================
+   FIX SELEZIONE
+   PRIMO CLICK
+========================= */
+
+versionInput.addEventListener(
+  "mousedown",
+  function () {
+    this.focus();
+  }
+);
+
+sizeInput.addEventListener(
+  "mousedown",
+  function () {
+    this.focus();
   }
 );
 
