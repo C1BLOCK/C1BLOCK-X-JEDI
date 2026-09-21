@@ -1,115 +1,116 @@
 <!doctype html>
 <html lang="it">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Stock - C1BLOCK X JEDI</title>
+  <title>Stock - C1BLOCK X JEDI</title>
 
-<style>
-* {
-  box-sizing: border-box;
-}
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-body {
-  margin: 0;
-  background: #080808;
-  color: #fff;
-  font-family: Arial, sans-serif;
-}
+    body {
+      margin: 0;
+      background: #080808;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
 
-.wrap {
-  max-width: 800px;
-  margin: 40px auto;
-  padding: 20px;
-}
+    .wrap {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+    }
 
-.card {
-  background: #151515;
-  border: 1px solid #333;
-  border-radius: 14px;
-  padding: 25px;
-  margin-bottom: 20px;
-}
+    h1 {
+      margin: 0 0 8px;
+    }
 
-h1 {
-  margin: 0 0 8px;
-}
+    h2 {
+      margin-top: 0;
+    }
 
-h2 {
-  margin-top: 0;
-}
+    .muted {
+      color: #999;
+    }
 
-.muted {
-  color: #999;
-}
+    .card {
+      background: #151515;
+      border: 1px solid #333;
+      border-radius: 14px;
+      padding: 25px;
+      margin-bottom: 20px;
+    }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-}
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
 
-label {
-  display: block;
-  font-size: 13px;
-  color: #aaa;
-  margin-bottom: 6px;
-}
+    label {
+      display: block;
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 6px;
+    }
 
-input {
-  width: 100%;
-  padding: 12px;
-  background: #0d0d0d;
-  color: white;
-  border: 1px solid #444;
-  border-radius: 8px;
-  font-size: 16px;
-}
+    input {
+      width: 100%;
+      padding: 12px;
+      background: #0d0d0d;
+      color: white;
+      border: 1px solid #444;
+      border-radius: 8px;
+      font-size: 16px;
+    }
 
-button {
-  margin-top: 20px;
-  padding: 14px 20px;
-  border: 0;
-  border-radius: 8px;
-  background: white;
-  color: black;
-  font-weight: bold;
-  cursor: pointer;
-}
+    button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 14px 20px;
+      border: 0;
+      border-radius: 8px;
+      background: white;
+      color: black;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 15px;
+    }
 
-button:hover {
-  opacity: .85;
-}
+    button:hover {
+      opacity: .85;
+    }
 
-.full {
-  width: 100%;
-}
+    .hidden {
+      display: none;
+    }
 
-#message {
-  margin-top: 15px;
-  min-height: 22px;
-  font-weight: bold;
-}
+    .error {
+      color: #ff6b6b;
+      margin-top: 15px;
+      font-weight: bold;
+    }
 
-.hidden {
-  display: none;
-}
+    .success {
+      color: #7cff9b;
+      margin-top: 15px;
+      font-weight: bold;
+    }
 
-.error {
-  color: #ff6b6b;
-}
+    .info {
+      color: #aaa;
+      margin-top: 15px;
+    }
 
-.success {
-  color: #7cff9b;
-}
-
-@media (max-width: 600px) {
-  .grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-</style>
+    @media (max-width: 600px) {
+      .grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
 </head>
 
 <body>
@@ -136,10 +137,7 @@ button:hover {
       autocomplete="current-password"
     >
 
-    <button
-      class="full"
-      onclick="login()"
-    >
+    <button id="loginButton">
       ACCEDI
     </button>
 
@@ -148,9 +146,11 @@ button:hover {
   </div>
 
 
-  <!-- STOCK -->
+  <!-- PANNELLO STOCK -->
 
   <div id="panel" class="hidden">
+
+    <!-- 30 EURO -->
 
     <div class="card">
 
@@ -160,33 +160,35 @@ button:hover {
 
         <div>
           <label>S</label>
-          <input id="30-S" type="number" min="0">
+          <input id="30-S" type="number" min="0" step="1">
         </div>
 
         <div>
           <label>M</label>
-          <input id="30-M" type="number" min="0">
+          <input id="30-M" type="number" min="0" step="1">
         </div>
 
         <div>
           <label>L</label>
-          <input id="30-L" type="number" min="0">
+          <input id="30-L" type="number" min="0" step="1">
         </div>
 
         <div>
           <label>XL</label>
-          <input id="30-XL" type="number" min="0">
+          <input id="30-XL" type="number" min="0" step="1">
         </div>
 
         <div>
           <label>XXL</label>
-          <input id="30-XXL" type="number" min="0">
+          <input id="30-XXL" type="number" min="0" step="1">
         </div>
 
       </div>
 
     </div>
 
+
+    <!-- 50 EURO -->
 
     <div class="card">
 
@@ -196,35 +198,32 @@ button:hover {
 
         <div>
           <label>S</label>
-          <input id="50-S" type="number" min="0">
+          <input id="50-S" type="number" min="0" step="1">
         </div>
 
         <div>
           <label>M</label>
-          <input id="50-M" type="number" min="0">
+          <input id="50-M" type="number" min="0" step="1">
         </div>
 
         <div>
           <label>L</label>
-          <input id="50-L" type="number" min="0">
+          <input id="50-L" type="number" min="0" step="1">
         </div>
 
         <div>
           <label>XL</label>
-          <input id="50-XL" type="number" min="0">
+          <input id="50-XL" type="number" min="0" step="1">
         </div>
 
         <div>
           <label>XXL</label>
-          <input id="50-XXL" type="number" min="0">
+          <input id="50-XXL" type="number" min="0" step="1">
         </div>
 
       </div>
 
-      <button
-        class="full"
-        onclick="saveStock()"
-      >
+      <button id="saveButton">
         SALVA STOCK
       </button>
 
@@ -239,17 +238,21 @@ button:hover {
 
 <script>
 
-const versions = ['30', '50'];
+const versions = ["30", "50"];
 
-const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+const sizes = ["S", "M", "L", "XL", "XXL"];
 
-let adminPassword = '';
+let adminPassword = "";
 
 
-function createEmptyStock() {
+/* =========================
+   STOCK VUOTO
+========================= */
+
+function emptyStock() {
 
   return {
-    '30': {
+    "30": {
       S: 0,
       M: 0,
       L: 0,
@@ -257,7 +260,7 @@ function createEmptyStock() {
       XXL: 0
     },
 
-    '50': {
+    "50": {
       S: 0,
       M: 0,
       L: 0,
@@ -269,35 +272,21 @@ function createEmptyStock() {
 }
 
 
+/* =========================
+   NORMALIZZA STOCK
+========================= */
+
 function normalizeStock(data) {
 
-  const stock = createEmptyStock();
+  const stock = emptyStock();
 
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== "object") {
     return stock;
   }
 
-  /*
-    Supporta entrambi i formati:
-
-    {
-      "30": {...},
-      "50": {...}
-    }
-
-    oppure:
-
-    {
-      "stock": {
-        "30": {...},
-        "50": {...}
-      }
-    }
-  */
-
   const source =
     data.stock &&
-    typeof data.stock === 'object'
+    typeof data.stock === "object"
       ? data.stock
       : data;
 
@@ -306,7 +295,7 @@ function normalizeStock(data) {
 
     if (
       !source[version] ||
-      typeof source[version] !== 'object'
+      typeof source[version] !== "object"
     ) {
       continue;
     }
@@ -337,25 +326,58 @@ function normalizeStock(data) {
 }
 
 
+/* =========================
+   MOSTRA STOCK
+========================= */
+
+function showStock(stock) {
+
+  for (const version of versions) {
+
+    for (const size of sizes) {
+
+      const input =
+        document.getElementById(
+          `${version}-${size}`
+        );
+
+      if (!input) {
+        continue;
+      }
+
+      input.value =
+        stock[version][size];
+
+    }
+
+  }
+
+}
+
+
+/* =========================
+   LOGIN
+========================= */
+
 async function login() {
 
-  const password =
-    document.getElementById('password')
-      .value
-      .trim();
-
+  const passwordInput =
+    document.getElementById("password");
 
   const loginMessage =
-    document.getElementById('loginMessage');
+    document.getElementById("loginMessage");
+
+  const password =
+    passwordInput.value.trim();
 
 
   if (!password) {
 
     loginMessage.textContent =
-      'Inserisci la password.';
+      "Inserisci la password.";
 
     loginMessage.className =
-      'error';
+      "error";
 
     return;
 
@@ -363,31 +385,31 @@ async function login() {
 
 
   loginMessage.textContent =
-    'Accesso...';
+    "Accesso...";
 
-  loginMessage.className = '';
+  loginMessage.className =
+    "info";
 
 
   try {
 
     const response =
       await fetch(
-        '/api/admin/stock',
+        "/api/admin/stock",
         {
-          method: 'GET',
-
-          cache: 'no-store',
-
+          method: "GET",
+          cache: "no-store",
           headers: {
-            'x-admin-password': password,
-            'Cache-Control': 'no-cache'
+            "x-admin-password": password,
+            "Cache-Control": "no-cache"
           }
         }
       );
 
 
     const data =
-      await response.json()
+      await response
+        .json()
         .catch(() => ({}));
 
 
@@ -395,80 +417,57 @@ async function login() {
 
       throw new Error(
         data.error ||
-        'Password non valida.'
+        `Errore HTTP ${response.status}`
       );
 
     }
-
-
-    const stock =
-      normalizeStock(data);
 
 
     adminPassword =
       password;
 
 
-    for (const version of versions) {
-
-      for (const size of sizes) {
-
-        const input =
-          document.getElementById(
-            `${version}-${size}`
-          );
+    const stock =
+      normalizeStock(data);
 
 
-        if (input) {
-
-          input.value =
-            stock[version][size];
-
-        }
-
-      }
-
-    }
+    showStock(stock);
 
 
     document
-      .getElementById('loginBox')
-      .classList.add('hidden');
+      .getElementById("loginBox")
+      .classList.add("hidden");
 
 
     document
-      .getElementById('panel')
-      .classList.remove('hidden');
+      .getElementById("panel")
+      .classList.remove("hidden");
 
 
   } catch (error) {
 
-    console.error(
-      'Errore login:',
-      error
-    );
-
+    console.error(error);
 
     loginMessage.textContent =
       error.message ||
-      'Errore di accesso.';
+      "Errore durante l'accesso.";
 
     loginMessage.className =
-      'error';
+      "error";
 
   }
 
 }
 
 
-async function saveStock() {
+/* =========================
+   LEGGI STOCK DALLA PAGINA
+========================= */
 
-  const message =
-    document.getElementById('message');
-
+function getStockFromPage() {
 
   const stock =
-    createEmptyStock();
+    emptyStock();
 
 
   for (const version of versions) {
@@ -510,32 +509,51 @@ async function saveStock() {
 
   }
 
+  return stock;
+
+}
+
+
+/* =========================
+   SALVA STOCK
+========================= */
+
+async function saveStock() {
+
+  const message =
+    document.getElementById("message");
+
+
+  const stock =
+    getStockFromPage();
+
 
   message.textContent =
-    'Salvataggio...';
+    "Salvataggio...";
 
-  message.className = '';
+  message.className =
+    "info";
 
 
   try {
 
     const response =
       await fetch(
-        '/api/admin/stock',
+        "/api/admin/stock",
         {
-          method: 'PUT',
+          method: "PUT",
 
-          cache: 'no-store',
+          cache: "no-store",
 
           headers: {
-            'Content-Type':
-              'application/json',
+            "Content-Type":
+              "application/json",
 
-            'x-admin-password':
+            "x-admin-password":
               adminPassword,
 
-            'Cache-Control':
-              'no-cache'
+            "Cache-Control":
+              "no-cache"
           },
 
           body:
@@ -545,7 +563,8 @@ async function saveStock() {
 
 
     const data =
-      await response.json()
+      await response
+        .json()
         .catch(() => ({}));
 
 
@@ -553,54 +572,63 @@ async function saveStock() {
 
       throw new Error(
         data.error ||
-        'Errore nel salvataggio.'
+        `Errore HTTP ${response.status}`
       );
 
     }
 
 
     message.textContent =
-      '✓ Stock aggiornato correttamente.';
+      "✓ Stock aggiornato correttamente.";
 
     message.className =
-      'success';
+      "success";
 
 
   } catch (error) {
 
-    console.error(
-      'Errore salvataggio:',
-      error
-    );
-
+    console.error(error);
 
     message.textContent =
       error.message ||
-      'Errore nel salvataggio.';
+      "Errore durante il salvataggio.";
 
     message.className =
-      'error';
+      "error";
 
   }
 
 }
 
 
-/*
-  Permette di premere INVIO
-  nella casella password.
-*/
+/* =========================
+   EVENTI
+========================= */
 
 document
-  .getElementById('password')
+  .getElementById("loginButton")
   .addEventListener(
-    'keydown',
+    "click",
+    login
+  );
+
+
+document
+  .getElementById("saveButton")
+  .addEventListener(
+    "click",
+    saveStock
+  );
+
+
+document
+  .getElementById("password")
+  .addEventListener(
+    "keydown",
     function(event) {
 
-      if (event.key === 'Enter') {
-
+      if (event.key === "Enter") {
         login();
-
       }
 
     }
