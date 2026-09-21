@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
 const PORT = Number(process.env.PORT || 3000);
 
 const STOCK_FILE = path.join(
@@ -17,183 +18,120 @@ const STOCK_FILE = path.join(
   'stock.json'
 );
 
-/* =====================================================
-   VARIABILI AMBIENTE
-===================================================== */
-
-function getEnv(name) {
-  const value = process.env[name];
-
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  return value.trim();
-}
-
-const STRIPE_SECRET_KEY = getEnv(
-  'STRIPE_SECRET_KEY'
-);
-
-const ADMIN_PASSWORD = getEnv(
-  'ADMIN_PASSWORD'
-);
-
-const STRIPE_WEBHOOK_SECRET = getEnv(
-  'STRIPE_WEBHOOK_SECRET'
-);
-
-const TELEGRAM_BOT_TOKEN = getEnv(
-  'TELEGRAM_BOT_TOKEN'
-);
-
-const TELEGRAM_CHAT_ID = getEnv(
-  'TELEGRAM_CHAT_ID'
-);
-
-/* =====================================================
-   CONTROLLO VARIABILI RAILWAY
-===================================================== */
-
-console.log(
-  '=========================================='
-);
-
-console.log(
-  'CONTROLLO VARIABILI RAILWAY'
-);
-
-console.log(
-  'ADMIN_PASSWORD:',
-  Boolean(ADMIN_PASSWORD)
-);
-
-console.log(
-  'STRIPE_SECRET_KEY:',
-  Boolean(STRIPE_SECRET_KEY)
-);
-
-console.log(
-  'STRIPE_WEBHOOK_SECRET:',
-  Boolean(STRIPE_WEBHOOK_SECRET)
-);
-
-console.log(
-  'TELEGRAM_BOT_TOKEN:',
-  Boolean(TELEGRAM_BOT_TOKEN)
-);
-
-console.log(
-  'TELEGRAM_CHAT_ID:',
-  Boolean(TELEGRAM_CHAT_ID)
-);
-
-console.log(
-  '=========================================='
-);
 
 /* =====================================================
    STRIPE
 ===================================================== */
 
-let stripe = null;
+const stripeKey =
+  process.env.STRIPE_SECRET_KEY ||
+  process.env['CHIAVE SEGRETA A STRISCIA'];
 
-if (STRIPE_SECRET_KEY) {
-  try {
-    stripe = new Stripe(
-      STRIPE_SECRET_KEY
-    );
+console.log(
+  'STRIPE_SECRET_KEY:',
+  Boolean(process.env.STRIPE_SECRET_KEY)
+);
 
-    console.log(
-      'Stripe configurato correttamente.'
-    );
-  } catch (error) {
-    console.error(
-      'ERRORE inizializzazione Stripe:',
-      error.message
-    );
-  }
-} else {
+console.log(
+  'CHIAVE SEGRETA A STRISCIA:',
+  Boolean(
+    process.env['CHIAVE SEGRETA A STRISCIA']
+  )
+);
+
+if (!stripeKey) {
   console.error(
-    'ERRORE: STRIPE_SECRET_KEY non configurata su Railway.'
+    'ERRORE: chiave segreta Stripe non configurata.'
   );
 }
 
+const stripe = stripeKey
+  ? new Stripe(stripeKey)
+  : null;
+
+
 /* =====================================================
-   EXPRESS
+   ADMIN PASSWORD
 ===================================================== */
 
-app.use(
-  express.json()
+const adminPassword =
+  process.env.ADMIN_PASSWORD ||
+  process.env['PASSWORD ADMIN'] ||
+  process.env.ADMIN_PASSWORD_STOCK ||
+  process.env['PASSWORD STOCK'] ||
+  '';
+
+console.log(
+  'ADMIN PASSWORD CONFIGURATA:',
+  Boolean(adminPassword)
 );
+
+
+/* =====================================================
+   MIDDLEWARE
+===================================================== */
+
+app.use(express.json());
 
 app.use(
   express.static(__dirname)
 );
 
+
 /* =====================================================
    STOCK
 ===================================================== */
 
-const SIZES = [
-  'S',
-  'M',
-  'L',
-  'XL',
-  'XXL'
-];
+function createDefaultStock() {
+  return {
+    '30': {
+      S: 15,
+      M: 18,
+      L: 15,
+      XL: 5,
+      XXL: 3
+    },
 
-const VERSIONS = [
-  '30',
-  '50'
-];
+    '50': {
+      S: 15,
+      M: 18,
+      L: 15,
+      XL: 5,
+      XXL: 3
+    }
+  };
+}
 
-/* =====================================================
-   LETTURA STOCK
-===================================================== */
 
 async function readStock() {
-  try {
-    const data = await fs.readFile(
-      STOCK_FILE,
-      'utf8'
-    );
 
-    const stock = JSON.parse(data);
+  try {
+
+    const data =
+      await fs.readFile(
+        STOCK_FILE,
+        'utf8'
+      );
+
+    const stock =
+      JSON.parse(data);
 
     return stock;
+
   } catch {
-    const defaultStock = {
-      '30': {
-        S: 15,
-        M: 18,
-        L: 15,
-        XL: 5,
-        XXL: 3
-      },
 
-      '50': {
-        S: 15,
-        M: 18,
-        L: 15,
-        XL: 5,
-        XXL: 3
-      }
-    };
+    const stock =
+      createDefaultStock();
 
-    await saveStock(
-      defaultStock
-    );
+    await saveStock(stock);
 
-    return defaultStock;
+    return stock;
   }
 }
 
-/* =====================================================
-   SALVATAGGIO STOCK
-===================================================== */
 
 async function saveStock(stock) {
+
   await fs.mkdir(
     path.dirname(STOCK_FILE),
     {
@@ -212,19 +150,37 @@ async function saveStock(stock) {
   );
 }
 
+
+/* =====================================================
+   CONTROLLO PASSWORD ADMIN
+===================================================== */
+
+function checkAdminPassword(req) {
+
+  if (!adminPassword) {
+    return false;
+  }
+
+  const receivedPassword =
+    String(
+      req.headers['x-admin-password'] || ''
+    ).trim();
+
+  return receivedPassword === adminPassword;
+}
+
+
 /* =====================================================
    STOCK PUBBLICO
-
-   Il cliente vede solamente:
-   disponibile / esaurito
-
-   NON vede la quantità.
+   I CLIENTI VEDONO SOLO DISPONIBILE / ESAURITO
 ===================================================== */
 
 app.get(
   '/api/stock',
   async (req, res) => {
+
     try {
+
       const stock =
         await readStock();
 
@@ -234,182 +190,207 @@ app.get(
       };
 
       for (
-        const version of VERSIONS
+        const version of ['30', '50']
       ) {
+
         for (
-          const size of SIZES
+          const size of [
+            'S',
+            'M',
+            'L',
+            'XL',
+            'XXL'
+          ]
         ) {
+
           available[version][size] =
             Number(
               stock?.[version]?.[size] || 0
             ) > 0;
+
         }
+
       }
 
-      return res.json(
+      res.json(
         available
       );
 
     } catch (error) {
+
       console.error(
         'STOCK ERROR:',
         error
       );
 
-      return res.status(500).json({
+      res.status(500).json({
         error:
-          'Errore stock'
+          'Errore caricamento stock.'
       });
+
     }
+
   }
 );
 
+
 /* =====================================================
-   STOCK ADMIN
-
-   POST /api/stock
-
-   action = get
-   action = set
+   ADMIN STOCK - LETTURA
 ===================================================== */
 
-app.post(
-  '/api/stock',
+app.get(
+  '/api/admin/stock',
   async (req, res) => {
+
     try {
-      const {
-        action,
-        password,
-        stock
-      } = req.body || {};
 
-      /* ===============================================
-         CONTROLLO PASSWORD ADMIN
-      =============================================== */
+      if (!checkAdminPassword(req)) {
 
-      if (!ADMIN_PASSWORD) {
-        console.error(
-          'ERRORE: ADMIN_PASSWORD non configurata su Railway.'
-        );
-
-        return res.status(500).json({
-          error:
-            'ADMIN_PASSWORD non configurata sul server.'
-        });
-      }
-
-      /* ===============================================
-         CONTROLLO PASSWORD INSERITA
-      =============================================== */
-
-      if (
-        !password ||
-        String(password) !==
-          ADMIN_PASSWORD
-      ) {
         return res.status(401).json({
           error:
-            'Password ADMIN non corretta.'
+            'Password ADMIN non valida.'
         });
+
       }
 
-      /* ===============================================
-         CARICA STOCK
-      =============================================== */
+      const stock =
+        await readStock();
 
-      if (action === 'get') {
-        const currentStock =
-          await readStock();
+      res.set(
+        'Cache-Control',
+        'no-store'
+      );
 
-        return res.json(
-          currentStock
-        );
-      }
-
-      /* ===============================================
-         SALVA STOCK
-      =============================================== */
-
-      if (action === 'set') {
-        if (
-          !stock ||
-          typeof stock !==
-            'object'
-        ) {
-          return res.status(400).json({
-            error:
-              'Dati stock non validi.'
-          });
-        }
-
-        const newStock = {
-          '30': {},
-          '50': {}
-        };
-
-        for (
-          const version of VERSIONS
-        ) {
-          for (
-            const size of SIZES
-          ) {
-            const value =
-              Number(
-                stock?.[version]?.[size]
-              );
-
-            if (
-              !Number.isInteger(value) ||
-              value < 0 ||
-              value > 10000
-            ) {
-              return res.status(400).json({
-                error:
-                  `Valore stock non valido: ${version}€ - ${size}`
-              });
-            }
-
-            newStock[version][size] =
-              value;
-          }
-        }
-
-        await saveStock(
-          newStock
-        );
-
-        console.log(
-          'STOCK AGGIORNATO:',
-          newStock
-        );
-
-        return res.json({
-          ok: true,
-          message:
-            'Stock aggiornato.',
-          stock:
-            newStock
-        });
-      }
-
-      return res.status(400).json({
-        error:
-          'Azione non valida.'
-      });
+      return res.json(
+        stock
+      );
 
     } catch (error) {
+
       console.error(
-        'ADMIN STOCK ERROR:',
+        'ADMIN STOCK GET ERROR:',
         error
       );
 
       return res.status(500).json({
         error:
-          'Errore nella gestione dello stock.'
+          'Errore caricamento stock.'
       });
+
     }
+
   }
 );
+
+
+/* =====================================================
+   ADMIN STOCK - SALVATAGGIO
+===================================================== */
+
+app.put(
+  '/api/admin/stock',
+  async (req, res) => {
+
+    try {
+
+      if (!checkAdminPassword(req)) {
+
+        return res.status(401).json({
+          error:
+            'Password ADMIN non valida.'
+        });
+
+      }
+
+      const incoming =
+        req.body || {};
+
+      const stock = {
+        '30': {},
+        '50': {}
+      };
+
+      const versions = [
+        '30',
+        '50'
+      ];
+
+      const sizes = [
+        'S',
+        'M',
+        'L',
+        'XL',
+        'XXL'
+      ];
+
+      for (
+        const version of versions
+      ) {
+
+        for (
+          const size of sizes
+        ) {
+
+          let value =
+            Number.parseInt(
+              incoming?.[version]?.[size],
+              10
+            );
+
+          if (
+            !Number.isFinite(value) ||
+            value < 0
+          ) {
+
+            value = 0;
+
+          }
+
+          stock[version][size] =
+            value;
+
+        }
+
+      }
+
+      await saveStock(
+        stock
+      );
+
+      console.log(
+        'STOCK AGGIORNATO:',
+        JSON.stringify(stock)
+      );
+
+      res.set(
+        'Cache-Control',
+        'no-store'
+      );
+
+      return res.json({
+        success: true,
+        message:
+          'Stock aggiornato correttamente.',
+        stock
+      });
+
+    } catch (error) {
+
+      console.error(
+        'ADMIN STOCK PUT ERROR:',
+        error
+      );
+
+      return res.status(500).json({
+        error:
+          'Errore nel salvataggio dello stock.'
+      });
+
+    }
+
+  }
+);
+
 
 /* =====================================================
    STRIPE CHECKOUT
@@ -418,12 +399,16 @@ app.post(
 app.post(
   '/create-checkout-session',
   async (req, res) => {
+
     try {
+
       if (!stripe) {
+
         return res.status(500).json({
           error:
             'Stripe non configurato sul server.'
         });
+
       }
 
       const {
@@ -440,9 +425,6 @@ app.post(
         note
       } = req.body || {};
 
-      /* ===============================================
-         VERSIONE
-      =============================================== */
 
       const version =
         String(
@@ -451,9 +433,6 @@ app.post(
           ? '50'
           : '30';
 
-      /* ===============================================
-         TAGLIA
-      =============================================== */
 
       const size =
         String(
@@ -462,9 +441,6 @@ app.post(
           .trim()
           .toUpperCase();
 
-      /* ===============================================
-         QUANTITÀ
-      =============================================== */
 
       const quantity =
         Number.parseInt(
@@ -472,98 +448,111 @@ app.post(
           10
         );
 
+
       if (
-        !SIZES.includes(size)
+        ![
+          'S',
+          'M',
+          'L',
+          'XL',
+          'XXL'
+        ].includes(size)
       ) {
+
         return res.status(400).json({
           error:
             'Taglia non valida.'
         });
+
       }
+
 
       if (
         !Number.isInteger(quantity) ||
         quantity < 1 ||
         quantity > 10
       ) {
+
         return res.status(400).json({
           error:
             'Quantità non valida.'
         });
+
       }
 
-      /* ===============================================
-         PREZZI
-      =============================================== */
 
       const prices = {
         '30': 3000,
         '50': 5000
       };
 
-      /* ===============================================
-         CONTROLLO STOCK
-      =============================================== */
 
       const stock =
         await readStock();
+
 
       const currentStock =
         Number(
           stock?.[version]?.[size] || 0
         );
 
+
       if (
         currentStock < quantity
       ) {
+
         return res.status(400).json({
           error:
             'Prodotto non disponibile.'
         });
+
       }
 
-      /* ===============================================
-         URL SITO
-      =============================================== */
 
       const origin =
-        getEnv('PUBLIC_URL') ||
+        process.env.PUBLIC_URL ||
         `http://localhost:${PORT}`;
 
-      /* ===============================================
-         CREAZIONE CHECKOUT STRIPE
-      =============================================== */
 
       const session =
         await stripe.checkout.sessions.create({
-          mode:
-            'payment',
+
+          mode: 'payment',
 
           line_items: [
+
             {
               price_data: {
-                currency:
-                  'eur',
+
+                currency: 'eur',
 
                 product_data: {
+
                   name:
                     version === '50'
                       ? 'C1BLOCK X JEDI - T-Shirt con firma'
                       : 'C1BLOCK X JEDI - T-Shirt'
+
                 },
 
                 unit_amount:
                   prices[version]
+
               },
 
               quantity
+
             }
+
           ],
+
 
           customer_email:
             email || undefined,
 
+
           metadata: {
+
             versione:
               `${version}€`,
 
@@ -574,59 +563,49 @@ app.post(
               String(quantity),
 
             nome:
-              String(
-                nome || ''
-              ),
+              String(nome || ''),
 
             cognome:
-              String(
-                cognome || ''
-              ),
+              String(cognome || ''),
 
             telefono:
-              String(
-                telefono || ''
-              ),
+              String(telefono || ''),
 
             email:
-              String(
-                email || ''
-              ),
+              String(email || ''),
 
             indirizzo:
-              String(
-                indirizzo || ''
-              ),
+              String(indirizzo || ''),
 
             cap:
-              String(
-                cap || ''
-              ),
+              String(cap || ''),
 
             citta:
-              String(
-                citta || ''
-              ),
+              String(citta || ''),
 
             note:
-              String(
-                note || ''
-              )
+              String(note || '')
+
           },
+
 
           success_url:
             `${origin}/thank-you.html`,
 
           cancel_url:
             `${origin}/index.html`
+
         });
+
 
       return res.json({
         url:
           session.url
       });
 
+
     } catch (error) {
+
       console.error(
         'STRIPE CHECKOUT ERROR:',
         error
@@ -636,91 +615,61 @@ app.post(
         error:
           'Impossibile avviare il pagamento.'
       });
+
     }
+
   }
 );
 
+
 /* =====================================================
-   WEBHOOK STRIPE
+   PAGINA ADMIN STOCK
 ===================================================== */
 
-app.post(
-  '/api/stripe-webhook',
-  express.raw({
-    type:
-      'application/json'
-  }),
-  async (req, res) => {
-    if (
-      !STRIPE_WEBHOOK_SECRET
-    ) {
-      return res.status(500).json({
-        error:
-          'STRIPE_WEBHOOK_SECRET non configurata.'
-      });
-    }
+app.get(
+  '/admin.html',
+  (req, res) => {
 
-    try {
-      const signature =
-        req.headers[
-          'stripe-signature'
-        ];
+    res.sendFile(
+      path.join(
+        __dirname,
+        'admin.html'
+      )
+    );
 
-      const event =
-        stripe.webhooks.constructEvent(
-          req.body,
-          signature,
-          STRIPE_WEBHOOK_SECRET
-        );
-
-      console.log(
-        'STRIPE WEBHOOK:',
-        event.type
-      );
-
-      return res.json({
-        received:
-          true
-      });
-
-    } catch (error) {
-      console.error(
-        'STRIPE WEBHOOK ERROR:',
-        error.message
-      );
-
-      return res.status(400).send(
-        `Webhook Error: ${error.message}`
-      );
-    }
   }
 );
 
+
 /* =====================================================
-   PAGINE DEL SITO
+   PAGINA PRINCIPALE
 ===================================================== */
 
 app.use(
   (req, res) => {
+
     if (
-      req.path.startsWith(
-        '/api/'
-      )
+      req.path.startsWith('/api/')
     ) {
+
       return res.status(404).json({
         error:
-          'Endpoint non trovato'
+          'Endpoint non trovato.'
       });
+
     }
 
-    return res.sendFile(
+
+    res.sendFile(
       path.join(
         __dirname,
         'index.html'
       )
     );
+
   }
 );
+
 
 /* =====================================================
    AVVIO SERVER
@@ -730,26 +679,18 @@ app.listen(
   PORT,
   '0.0.0.0',
   () => {
-    console.log(
-      '=========================================='
-    );
 
     console.log(
       `C1BLOCK X JEDI avviato sulla porta ${PORT}`
     );
 
     console.log(
-      'ADMIN_PASSWORD configurata:',
-      Boolean(ADMIN_PASSWORD)
+      `Porta: ${PORT}`
     );
 
     console.log(
-      'STRIPE_SECRET_KEY configurata:',
-      Boolean(STRIPE_SECRET_KEY)
+      `Admin stock: /admin.html`
     );
 
-    console.log(
-      '=========================================='
-    );
   }
 );
