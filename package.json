@@ -1,0 +1,14 @@
+{
+  "name": "c1block-x-jedi-local",
+  "version": "3.0.0",
+  "private": true,
+  "description": "C1BLOCK X JEDI local Node.js server for Visual Studio Code",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node server.js", "dev": "node --watch server.js" },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "stripe": "^18.5.0"
+  }
+}
