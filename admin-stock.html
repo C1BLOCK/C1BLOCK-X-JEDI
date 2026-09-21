@@ -3,100 +3,610 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stock — C1BLOCK X JEDI</title>
-<link rel="stylesheet" href="/style.css">
+
+<title>Stock - C1BLOCK X JEDI</title>
+
 <style>
-body{background:#080808;color:#fff;font-family:Arial,sans-serif}
-.wrap{max-width:760px;margin:40px auto;padding:20px}
-.card{background:#151515;border:1px solid #333;border-radius:14px;padding:24px;margin-top:18px}
-h1{margin-bottom:6px}.muted{color:#aaa}.hidden{display:none}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-label{font-size:12px;color:#aaa}input{width:100%;box-sizing:border-box;padding:12px;background:#0d0d0d;color:#fff;border:1px solid #444;border-radius:8px;margin-top:5px}
-button{margin-top:18px;padding:13px 18px;border:0;border-radius:8px;background:#fff;color:#000;font-weight:700;cursor:pointer}
-.msg{margin-top:14px;color:#ddd}
-h2{margin-top:0}
-@media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr)}}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #080808;
+  color: #fff;
+  font-family: Arial, sans-serif;
+}
+
+.wrap {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 20px;
+}
+
+.card {
+  background: #151515;
+  border: 1px solid #333;
+  border-radius: 14px;
+  padding: 25px;
+  margin-bottom: 20px;
+}
+
+h1 {
+  margin: 0 0 8px;
+}
+
+h2 {
+  margin-top: 0;
+}
+
+.muted {
+  color: #999;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  color: #aaa;
+  margin-bottom: 6px;
+}
+
+input {
+  width: 100%;
+  padding: 12px;
+  background: #0d0d0d;
+  color: white;
+  border: 1px solid #444;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+button {
+  margin-top: 20px;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 8px;
+  background: white;
+  color: black;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: .85;
+}
+
+.full {
+  width: 100%;
+}
+
+#message {
+  margin-top: 15px;
+  min-height: 22px;
+  font-weight: bold;
+}
+
+.hidden {
+  display: none;
+}
+
+.error {
+  color: #ff6b6b;
+}
+
+.success {
+  color: #7cff9b;
+}
+
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 </style>
 </head>
+
 <body>
+
 <div class="wrap">
-<h1>STOCK — C1BLOCK X JEDI</h1>
-<p class="muted">Pannello privato. I clienti non vedono le quantità.</p>
 
-<div id="login" class="card">
-  <label>Password ADMIN</label>
-  <input id="password" type="password" autocomplete="current-password">
-  <button onclick="login()">ACCEDI</button>
-  <div id="loginMsg" class="msg"></div>
-</div>
+  <h1>STOCK - C1BLOCK X JEDI</h1>
 
-<div id="panel" class="hidden">
-  <div class="card">
-    <h2>MAGLIA — 30€</h2>
-    <div class="grid">
-      <div><label>S</label><input id="30-S" type="number" min="0" max="9999"></div>
-      <div><label>M</label><input id="30-M" type="number" min="0" max="9999"></div>
-      <div><label>L</label><input id="30-L" type="number" min="0" max="9999"></div>
-      <div><label>XL</label><input id="30-XL" type="number" min="0" max="9999"></div>
-      <div><label>XXL</label><input id="30-XXL" type="number" min="0" max="9999"></div>
-    </div>
+  <p class="muted">
+    Pannello privato. I clienti non vedono le quantità.
+  </p>
+
+
+  <!-- LOGIN -->
+
+  <div id="loginBox" class="card">
+
+    <h2>Password ADMIN</h2>
+
+    <input
+      id="password"
+      type="password"
+      placeholder="Inserisci password"
+      autocomplete="current-password"
+    >
+
+    <button
+      class="full"
+      onclick="login()"
+    >
+      ACCEDI
+    </button>
+
+    <div id="loginMessage"></div>
+
   </div>
 
-  <div class="card">
-    <h2>MAGLIA CON FIRMA JEDI — 50€</h2>
-    <div class="grid">
-      <div><label>S</label><input id="50-S" type="number" min="0" max="9999"></div>
-      <div><label>M</label><input id="50-M" type="number" min="0" max="9999"></div>
-      <div><label>L</label><input id="50-L" type="number" min="0" max="9999"></div>
-      <div><label>XL</label><input id="50-XL" type="number" min="0" max="9999"></div>
-      <div><label>XXL</label><input id="50-XXL" type="number" min="0" max="9999"></div>
+
+  <!-- STOCK -->
+
+  <div id="panel" class="hidden">
+
+    <div class="card">
+
+      <h2>MAGLIA - 30€</h2>
+
+      <div class="grid">
+
+        <div>
+          <label>S</label>
+          <input id="30-S" type="number" min="0">
+        </div>
+
+        <div>
+          <label>M</label>
+          <input id="30-M" type="number" min="0">
+        </div>
+
+        <div>
+          <label>L</label>
+          <input id="30-L" type="number" min="0">
+        </div>
+
+        <div>
+          <label>XL</label>
+          <input id="30-XL" type="number" min="0">
+        </div>
+
+        <div>
+          <label>XXL</label>
+          <input id="30-XXL" type="number" min="0">
+        </div>
+
+      </div>
+
     </div>
-    <button onclick="save()">SALVA STOCK</button>
-    <div id="msg" class="msg"></div>
+
+
+    <div class="card">
+
+      <h2>MAGLIA CON FIRMA JEDI - 50€</h2>
+
+      <div class="grid">
+
+        <div>
+          <label>S</label>
+          <input id="50-S" type="number" min="0">
+        </div>
+
+        <div>
+          <label>M</label>
+          <input id="50-M" type="number" min="0">
+        </div>
+
+        <div>
+          <label>L</label>
+          <input id="50-L" type="number" min="0">
+        </div>
+
+        <div>
+          <label>XL</label>
+          <input id="50-XL" type="number" min="0">
+        </div>
+
+        <div>
+          <label>XXL</label>
+          <input id="50-XXL" type="number" min="0">
+        </div>
+
+      </div>
+
+      <button
+        class="full"
+        onclick="saveStock()"
+      >
+        SALVA STOCK
+      </button>
+
+      <div id="message"></div>
+
+    </div>
+
   </div>
+
 </div>
-</div>
+
 
 <script>
-let password="";
-const sizes=["S","M","L","XL","XXL"];
 
-async function api(payload){
-  const r=await fetch('/api/stock',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(payload)
-  });
-  const d=await r.json();
-  if(!r.ok) throw new Error(d.error||'Errore');
-  return d;
+const versions = ['30', '50'];
+
+const sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+
+let adminPassword = '';
+
+
+function createEmptyStock() {
+
+  return {
+    '30': {
+      S: 0,
+      M: 0,
+      L: 0,
+      XL: 0,
+      XXL: 0
+    },
+
+    '50': {
+      S: 0,
+      M: 0,
+      L: 0,
+      XL: 0,
+      XXL: 0
+    }
+  };
+
 }
 
-async function login(){
-  password=document.getElementById('password').value;
-  try{
-    const d=await api({action:'get',password});
-    for(const v of ['30','50']) for(const s of sizes)
-      document.getElementById(v+'-'+s).value=d[v][s];
-    document.getElementById('login').classList.add('hidden');
-    document.getElementById('panel').classList.remove('hidden');
-    document.getElementById('msg').textContent='Stock caricato.';
-  }catch(e){
-    document.getElementById('loginMsg').textContent=e.message;
+
+function normalizeStock(data) {
+
+  const stock = createEmptyStock();
+
+  if (!data || typeof data !== 'object') {
+    return stock;
   }
+
+  /*
+    Supporta entrambi i formati:
+
+    {
+      "30": {...},
+      "50": {...}
+    }
+
+    oppure:
+
+    {
+      "stock": {
+        "30": {...},
+        "50": {...}
+      }
+    }
+  */
+
+  const source =
+    data.stock &&
+    typeof data.stock === 'object'
+      ? data.stock
+      : data;
+
+
+  for (const version of versions) {
+
+    if (
+      !source[version] ||
+      typeof source[version] !== 'object'
+    ) {
+      continue;
+    }
+
+
+    for (const size of sizes) {
+
+      const value =
+        Number(source[version][size]);
+
+
+      if (
+        Number.isFinite(value) &&
+        value >= 0
+      ) {
+
+        stock[version][size] =
+          Math.floor(value);
+
+      }
+
+    }
+
+  }
+
+  return stock;
+
 }
 
-async function save(){
-  const stock={"30":{},"50":{}};
-  for(const v of ['30','50']) for(const s of sizes)
-    stock[v][s]=document.getElementById(v+'-'+s).value;
-  try{
-    await api({action:'set',password,stock});
-    document.getElementById('msg').textContent='✓ Stock aggiornato.';
-  }catch(e){
-    document.getElementById('msg').textContent=e.message;
+
+async function login() {
+
+  const password =
+    document.getElementById('password')
+      .value
+      .trim();
+
+
+  const loginMessage =
+    document.getElementById('loginMessage');
+
+
+  if (!password) {
+
+    loginMessage.textContent =
+      'Inserisci la password.';
+
+    loginMessage.className =
+      'error';
+
+    return;
+
   }
+
+
+  loginMessage.textContent =
+    'Accesso...';
+
+  loginMessage.className = '';
+
+
+  try {
+
+    const response =
+      await fetch(
+        '/api/admin/stock',
+        {
+          method: 'GET',
+
+          cache: 'no-store',
+
+          headers: {
+            'x-admin-password': password,
+            'Cache-Control': 'no-cache'
+          }
+        }
+      );
+
+
+    const data =
+      await response.json()
+        .catch(() => ({}));
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        'Password non valida.'
+      );
+
+    }
+
+
+    const stock =
+      normalizeStock(data);
+
+
+    adminPassword =
+      password;
+
+
+    for (const version of versions) {
+
+      for (const size of sizes) {
+
+        const input =
+          document.getElementById(
+            `${version}-${size}`
+          );
+
+
+        if (input) {
+
+          input.value =
+            stock[version][size];
+
+        }
+
+      }
+
+    }
+
+
+    document
+      .getElementById('loginBox')
+      .classList.add('hidden');
+
+
+    document
+      .getElementById('panel')
+      .classList.remove('hidden');
+
+
+  } catch (error) {
+
+    console.error(
+      'Errore login:',
+      error
+    );
+
+
+    loginMessage.textContent =
+      error.message ||
+      'Errore di accesso.';
+
+    loginMessage.className =
+      'error';
+
+  }
+
 }
+
+
+async function saveStock() {
+
+  const message =
+    document.getElementById('message');
+
+
+  const stock =
+    createEmptyStock();
+
+
+  for (const version of versions) {
+
+    for (const size of sizes) {
+
+      const input =
+        document.getElementById(
+          `${version}-${size}`
+        );
+
+
+      if (!input) {
+        continue;
+      }
+
+
+      let value =
+        Number.parseInt(
+          input.value,
+          10
+        );
+
+
+      if (
+        !Number.isFinite(value) ||
+        value < 0
+      ) {
+
+        value = 0;
+
+      }
+
+
+      stock[version][size] =
+        value;
+
+    }
+
+  }
+
+
+  message.textContent =
+    'Salvataggio...';
+
+  message.className = '';
+
+
+  try {
+
+    const response =
+      await fetch(
+        '/api/admin/stock',
+        {
+          method: 'PUT',
+
+          cache: 'no-store',
+
+          headers: {
+            'Content-Type':
+              'application/json',
+
+            'x-admin-password':
+              adminPassword,
+
+            'Cache-Control':
+              'no-cache'
+          },
+
+          body:
+            JSON.stringify(stock)
+        }
+      );
+
+
+    const data =
+      await response.json()
+        .catch(() => ({}));
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        'Errore nel salvataggio.'
+      );
+
+    }
+
+
+    message.textContent =
+      '✓ Stock aggiornato correttamente.';
+
+    message.className =
+      'success';
+
+
+  } catch (error) {
+
+    console.error(
+      'Errore salvataggio:',
+      error
+    );
+
+
+    message.textContent =
+      error.message ||
+      'Errore nel salvataggio.';
+
+    message.className =
+      'error';
+
+  }
+
+}
+
+
+/*
+  Permette di premere INVIO
+  nella casella password.
+*/
+
+document
+  .getElementById('password')
+  .addEventListener(
+    'keydown',
+    function(event) {
+
+      if (event.key === 'Enter') {
+
+        login();
+
+      }
+
+    }
+  );
+
 </script>
+
 </body>
 </html>
