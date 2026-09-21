@@ -2,17 +2,15 @@ const form = document.getElementById("orderForm");
 const payBtn = document.getElementById("payBtn");
 const errorBox = document.getElementById("orderError");
 
-const versionInput = document.getElementById("version");
-const sizeInput = document.getElementById("size");
-const quantityInput = document.getElementById("quantity");
-const total = document.getElementById("total");
+const versionSelect = document.querySelector('select[name="versione"]');
+const sizeSelect = document.querySelector('select[name="taglia"]');
+const quantityInput = document.querySelector('input[name="quantita"]');
 
 const prices = {
   "30": 30,
   "50": 50
 };
 
-const versions = ["30", "50"];
 const sizes = ["S", "M", "L", "XL", "XXL"];
 
 let stock = {
@@ -34,39 +32,54 @@ let stock = {
 
 
 /* =========================
-   TOTALE
+   ELEMENTI
 ========================= */
 
-function updateTotal() {
+if (!form) {
+  console.error("orderForm non trovato");
+}
 
-  const version =
-    versionInput.value || "30";
+if (!versionSelect) {
+  console.error("Select versione non trovato");
+}
 
-  let quantity =
-    parseInt(quantityInput.value, 10);
+if (!sizeSelect) {
+  console.error("Select taglia non trovato");
+}
 
-  if (!Number.isFinite(quantity) || quantity < 1) {
-    quantity = 1;
-    quantityInput.value = "1";
-  }
-
-  if (quantity > 5) {
-    quantity = 5;
-    quantityInput.value = "5";
-  }
-
-  total.textContent =
-    `€${prices[version] * quantity}`;
+if (!quantityInput) {
+  console.error("Input quantità non trovato");
 }
 
 
 /* =========================
-   NORMALIZZA STOCK
+   VERSIONE
 ========================= */
 
-function normalizeStock(data) {
+function getVersion() {
 
-  const result = {
+  if (!versionSelect) {
+    return "30";
+  }
+
+  const value =
+    String(versionSelect.value || "");
+
+  if (value.includes("50")) {
+    return "50";
+  }
+
+  return "30";
+}
+
+
+/* =========================
+   STOCK
+========================= */
+
+function createEmptyStock() {
+
+  return {
     "30": {
       S: 0,
       M: 0,
@@ -84,7 +97,18 @@ function normalizeStock(data) {
     }
   };
 
-  if (!data || typeof data !== "object") {
+}
+
+
+function normalizeStock(data) {
+
+  const result =
+    createEmptyStock();
+
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
     return result;
   }
 
@@ -94,7 +118,8 @@ function normalizeStock(data) {
       ? data.stock
       : data;
 
-  for (const version of versions) {
+
+  for (const version of ["30", "50"]) {
 
     if (
       !source[version] ||
@@ -103,22 +128,31 @@ function normalizeStock(data) {
       continue;
     }
 
+
     for (const size of sizes) {
 
       const value =
-        Number(source[version][size]);
+        Number(
+          source[version][size]
+        );
+
 
       if (
         Number.isFinite(value) &&
         value >= 0
       ) {
+
         result[version][size] =
           Math.floor(value);
+
       }
+
     }
+
   }
 
   return result;
+
 }
 
 
@@ -128,29 +162,43 @@ function normalizeStock(data) {
 
 function updateSizes() {
 
+  if (!sizeSelect) {
+    return;
+  }
+
+
   const version =
-    String(versionInput.value || "30");
+    getVersion();
+
 
   const available =
     stock[version] || {};
 
+
   const currentValue =
-    sizeInput.value;
+    sizeSelect.value;
 
 
-  for (const option of sizeInput.options) {
+  for (
+    const option of sizeSelect.options
+  ) {
 
     const size =
       String(option.value || "")
         .trim()
         .toUpperCase();
 
-    if (!size) {
+
+    if (!sizes.includes(size)) {
       continue;
     }
 
+
     const quantity =
-      Number(available[size] || 0);
+      Number(
+        available[size] || 0
+      );
+
 
     if (quantity <= 0) {
 
@@ -165,33 +213,174 @@ function updateSizes() {
 
       option.textContent =
         size;
+
     }
+
   }
 
 
   if (
     currentValue &&
-    Number(available[currentValue] || 0) > 0
+    Number(
+      available[currentValue] || 0
+    ) <= 0
   ) {
 
-    sizeInput.value =
-      currentValue;
-
-  } else {
-
-    sizeInput.value = "";
+    sizeSelect.value = "";
 
   }
+
 }
 
 
 /* =========================
-   CARICA STOCK
+   AGGIORNA QUANTITÀ
+========================= */
+
+function updateQuantityLimit() {
+
+  if (!quantityInput) {
+    return;
+  }
+
+
+  const version =
+    getVersion();
+
+
+  const size =
+    sizeSelect
+      ? sizeSelect.value
+      : "";
+
+
+  let max = 5;
+
+
+  if (
+    size &&
+    stock[version] &&
+    Number.isFinite(
+      Number(stock[version][size])
+    )
+  ) {
+
+    const available =
+      Number(
+        stock[version][size]
+      );
+
+
+    if (available > 0) {
+
+      max =
+        Math.min(
+          5,
+          available
+        );
+
+    }
+
+  }
+
+
+  quantityInput.max =
+    String(max);
+
+
+  let quantity =
+    parseInt(
+      quantityInput.value,
+      10
+    );
+
+
+  if (
+    !Number.isFinite(quantity) ||
+    quantity < 1
+  ) {
+
+    quantity = 1;
+
+  }
+
+
+  if (quantity > max) {
+
+    quantity = max;
+
+  }
+
+
+  quantityInput.value =
+    String(quantity);
+
+}
+
+
+/* =========================
+   TOTALE
+========================= */
+
+function updateTotal() {
+
+  const total =
+    document.getElementById("total");
+
+
+  if (!total) {
+    return;
+  }
+
+
+  const version =
+    getVersion();
+
+
+  let quantity =
+    parseInt(
+      quantityInput
+        ? quantityInput.value
+        : "1",
+      10
+    );
+
+
+  if (
+    !Number.isFinite(quantity) ||
+    quantity < 1
+  ) {
+
+    quantity = 1;
+
+  }
+
+
+  if (quantity > 5) {
+
+    quantity = 5;
+
+  }
+
+
+  total.textContent =
+    `€${prices[version] * quantity}`;
+
+}
+
+
+/* =========================
+   CARICAMENTO STOCK
 ========================= */
 
 async function loadStock() {
 
   try {
+
+    console.log(
+      "Caricamento stock..."
+    );
+
 
     const response =
       await fetch(
@@ -200,33 +389,48 @@ async function loadStock() {
           method: "GET",
           cache: "no-store",
           headers: {
-            "Cache-Control": "no-cache"
+            "Cache-Control":
+              "no-cache"
           }
         }
       );
 
+
     if (!response.ok) {
 
-      console.error(
-        "Errore stock:",
-        response.status
+      throw new Error(
+        `Errore stock HTTP ${response.status}`
       );
 
-      return;
     }
+
 
     const data =
       await response.json();
 
+
     console.log(
-      "STOCK CARICATO:",
+      "STOCK RICEVUTO:",
       data
     );
+
 
     stock =
       normalizeStock(data);
 
+
+    console.log(
+      "STOCK NORMALIZZATO:",
+      stock
+    );
+
+
     updateSizes();
+
+    updateQuantityLimit();
+
+    updateTotal();
+
 
   } catch (error) {
 
@@ -234,308 +438,447 @@ async function loadStock() {
       "Errore caricamento stock:",
       error
     );
+
   }
+
 }
 
 
 /* =========================
-   TIPO MAGLIA
+   CAMBIO MAGLIA
 ========================= */
 
-versionInput.addEventListener(
-  "change",
-  function () {
+if (versionSelect) {
 
-    sizeInput.value = "";
+  versionSelect.addEventListener(
+    "change",
+    function() {
 
-    updateSizes();
+      console.log(
+        "Maglia selezionata:",
+        this.value
+      );
 
-    updateTotal();
-  }
-);
+
+      if (sizeSelect) {
+
+        sizeSelect.value = "";
+
+      }
+
+
+      if (quantityInput) {
+
+        quantityInput.value = "1";
+
+      }
+
+
+      updateSizes();
+
+      updateQuantityLimit();
+
+      updateTotal();
+
+    }
+  );
+
+}
 
 
 /* =========================
-   TAGLIA
+   CAMBIO TAGLIA
 ========================= */
 
-sizeInput.addEventListener(
-  "change",
-  function () {
+if (sizeSelect) {
 
-    const version =
-      versionInput.value;
+  sizeSelect.addEventListener(
+    "change",
+    function() {
 
-    const size =
-      sizeInput.value;
+      const version =
+        getVersion();
 
-    if (!size) {
-      return;
-    }
 
-    const available =
-      Number(
-        stock?.[version]?.[size] || 0
+      const size =
+        this.value;
+
+
+      console.log(
+        "Taglia selezionata:",
+        size,
+        "Versione:",
+        version
       );
 
-    if (available <= 0) {
 
-      sizeInput.value = "";
+      if (!size) {
 
-      errorBox.textContent =
-        "Questa taglia è esaurita.";
+        updateQuantityLimit();
 
-      errorBox.style.display =
-        "block";
+        updateTotal();
 
-      return;
+        return;
+
+      }
+
+
+      const available =
+        Number(
+          stock?.[version]?.[size] || 0
+        );
+
+
+      if (available <= 0) {
+
+        this.value = "";
+
+        alert(
+          "Questa taglia è esaurita."
+        );
+
+      }
+
+
+      updateQuantityLimit();
+
+      updateTotal();
+
     }
+  );
 
-    errorBox.style.display =
-      "none";
-  }
-);
+}
 
 
 /* =========================
    QUANTITÀ
 ========================= */
 
-quantityInput.addEventListener(
-  "input",
-  function () {
+if (quantityInput) {
 
-    let value =
-      parseInt(
-        quantityInput.value,
-        10
-      );
+  quantityInput.addEventListener(
+    "input",
+    function() {
 
-    if (!Number.isFinite(value)) {
-      value = 1;
-    }
-
-    if (value < 1) {
-      value = 1;
-    }
-
-    if (value > 5) {
-      value = 5;
-    }
-
-    quantityInput.value =
-      String(value);
-
-    updateTotal();
-  }
-);
-
-
-/* =========================
-   INVIO ORDINE
-========================= */
-
-form.addEventListener(
-  "submit",
-  async function (event) {
-
-    event.preventDefault();
-
-    errorBox.style.display =
-      "none";
-
-
-    const version =
-      versionInput.value;
-
-    const size =
-      sizeInput.value;
-
-    const quantity =
-      parseInt(
-        quantityInput.value,
-        10
-      );
-
-
-    if (!version) {
-
-      errorBox.textContent =
-        "Seleziona il tipo di maglia.";
-
-      errorBox.style.display =
-        "block";
-
-      return;
-    }
-
-
-    if (!size) {
-
-      errorBox.textContent =
-        "Seleziona una taglia.";
-
-      errorBox.style.display =
-        "block";
-
-      return;
-    }
-
-
-    const available =
-      Number(
-        stock?.[version]?.[size] || 0
-      );
-
-
-    if (available <= 0) {
-
-      errorBox.textContent =
-        "La taglia selezionata è esaurita.";
-
-      errorBox.style.display =
-        "block";
-
-      updateSizes();
-
-      return;
-    }
-
-
-    if (quantity > available) {
-
-      errorBox.textContent =
-        `Disponibilità massima: ${available}`;
-
-      errorBox.style.display =
-        "block";
-
-      return;
-    }
-
-
-    if (!form.checkValidity()) {
-
-      form.reportValidity();
-
-      return;
-    }
-
-
-    payBtn.disabled =
-      true;
-
-    payBtn.textContent =
-      "APERTURA PAGAMENTO…";
-
-
-    try {
-
-      const data =
-        Object.fromEntries(
-          new FormData(form).entries()
+      let quantity =
+        parseInt(
+          this.value,
+          10
         );
-
-
-      data.version =
-        version;
-
-      data.size =
-        size;
-
-      data.quantity =
-        String(quantity);
-
-
-      const response =
-        await fetch(
-          "/api/create-checkout",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
-
-            body:
-              JSON.stringify(data)
-          }
-        );
-
-
-      const payload =
-        await response
-          .json()
-          .catch(() => ({}));
 
 
       if (
-        !response.ok ||
-        !payload.url
+        !Number.isFinite(quantity) ||
+        quantity < 1
       ) {
 
-        throw new Error(
-          payload.error ||
-          "Impossibile avviare il pagamento."
-        );
+        quantity = 1;
+
       }
 
 
-      window.location.assign(
-        payload.url
-      );
+      if (quantity > 5) {
+
+        quantity = 5;
+
+      }
 
 
-    } catch (error) {
-
-      console.error(
-        "Errore pagamento:",
-        error
-      );
+      const version =
+        getVersion();
 
 
-      errorBox.textContent =
-        error.message ||
-        "Errore durante il pagamento.";
-
-      errorBox.style.display =
-        "block";
+      const size =
+        sizeSelect
+          ? sizeSelect.value
+          : "";
 
 
-      payBtn.disabled =
-        false;
+      if (
+        size &&
+        stock[version] &&
+        Number(stock[version][size]) > 0
+      ) {
 
-      payBtn.textContent =
-        "PAGA CON STRIPE →";
+        const available =
+          Number(
+            stock[version][size]
+          );
+
+
+        if (quantity > available) {
+
+          quantity =
+            Math.min(
+              5,
+              available
+            );
+
+        }
+
+      }
+
+
+      this.value =
+        String(quantity);
+
+
+      updateTotal();
+
     }
-  }
-);
+  );
+
+}
 
 
 /* =========================
-   FIX SELEZIONE
-   PRIMO CLICK
+   PAGAMENTO
 ========================= */
 
-versionInput.addEventListener(
-  "mousedown",
-  function () {
-    this.focus();
-  }
-);
+if (form) {
 
-sizeInput.addEventListener(
-  "mousedown",
-  function () {
-    this.focus();
-  }
-);
+  form.addEventListener(
+    "submit",
+    async function(event) {
+
+      event.preventDefault();
+
+
+      if (errorBox) {
+
+        errorBox.style.display =
+          "none";
+
+      }
+
+
+      const version =
+        getVersion();
+
+
+      const size =
+        sizeSelect
+          ? sizeSelect.value
+          : "";
+
+
+      let quantity =
+        parseInt(
+          quantityInput
+            ? quantityInput.value
+            : "1",
+          10
+        );
+
+
+      if (!size) {
+
+        if (errorBox) {
+
+          errorBox.textContent =
+            "Seleziona una taglia.";
+
+          errorBox.style.display =
+            "block";
+
+        }
+
+        return;
+
+      }
+
+
+      if (
+        !Number.isFinite(quantity) ||
+        quantity < 1
+      ) {
+
+        quantity = 1;
+
+      }
+
+
+      const available =
+        Number(
+          stock?.[version]?.[size] || 0
+        );
+
+
+      if (available <= 0) {
+
+        if (errorBox) {
+
+          errorBox.textContent =
+            "La taglia selezionata è esaurita.";
+
+          errorBox.style.display =
+            "block";
+
+        }
+
+
+        updateSizes();
+
+        return;
+
+      }
+
+
+      if (quantity > available) {
+
+        if (errorBox) {
+
+          errorBox.textContent =
+            `Disponibilità massima: ${available}`;
+
+          errorBox.style.display =
+            "block";
+
+        }
+
+        return;
+
+      }
+
+
+      if (!form.checkValidity()) {
+
+        form.reportValidity();
+
+        return;
+
+      }
+
+
+      if (payBtn) {
+
+        payBtn.disabled = true;
+
+        payBtn.textContent =
+          "APERTURA PAGAMENTO…";
+
+      }
+
+
+      try {
+
+        const data =
+          Object.fromEntries(
+            new FormData(form).entries()
+          );
+
+
+        /*
+          Il server riceve sempre
+          i valori corretti.
+        */
+
+        data.version =
+          version;
+
+
+        data.size =
+          size;
+
+
+        data.quantity =
+          String(quantity);
+
+
+        console.log(
+          "ORDINE:",
+          data
+        );
+
+
+        const response =
+          await fetch(
+            "/api/create-checkout",
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+
+              body:
+                JSON.stringify(data)
+            }
+          );
+
+
+        const payload =
+          await response
+            .json()
+            .catch(
+              () => ({})
+            );
+
+
+        if (
+          !response.ok ||
+          !payload.url
+        ) {
+
+          throw new Error(
+            payload.error ||
+            "Impossibile avviare il pagamento."
+          );
+
+        }
+
+
+        window.location.assign(
+          payload.url
+        );
+
+
+      } catch (error) {
+
+        console.error(
+          "Errore pagamento:",
+          error
+        );
+
+
+        if (errorBox) {
+
+          errorBox.textContent =
+            error.message ||
+            "Errore durante il pagamento.";
+
+          errorBox.style.display =
+            "block";
+
+        }
+
+
+        if (payBtn) {
+
+          payBtn.disabled =
+            false;
+
+          payBtn.textContent =
+            "PAGA CON STRIPE →";
+
+        }
+
+      }
+
+    }
+  );
+
+}
 
 
 /* =========================
    AVVIO
 ========================= */
+
+updateSizes();
+
+updateQuantityLimit();
 
 updateTotal();
 
