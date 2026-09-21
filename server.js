@@ -22,7 +22,10 @@ const PRICES = {
 const RESERVATION_MINUTES = 30;
 let stockLock = Promise.resolve();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(
+  process.env.STRIPE_SECRET_KEY ||
+  process.env["CHIAVE SEGRETA A STRISCIA"]
+);
 
 function json(res, status, body) {
   res.status(status).type('application/json').set('Cache-Control', 'no-store').send(body);
