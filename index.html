@@ -817,6 +817,13 @@ const total =
     'total'
   );
 
+function isAvailableValue(value) {
+  if (value === true) return true;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0;
+}
+
+
 
 /* =====================================================
    PREZZI
@@ -889,7 +896,7 @@ async function loadStock() {
 
     const response =
       await fetch(
-        '/api/stock',
+        'https://c1block-x-jedi-production-83ad.up.railway.app/api/stock',
         {
           method: 'GET',
 
@@ -956,11 +963,9 @@ async function loadStock() {
 
 
       const available =
-        stock?.[
-          version
-        ]?.[
-          size
-        ] === true;
+        isAvailableValue(
+          stock?.[version]?.[size]
+        );
 
 
       if (available) {
@@ -1035,7 +1040,7 @@ async function checkStockBeforePayment() {
 
   const response =
     await fetch(
-      '/api/stock',
+      'https://c1block-x-jedi-production-83ad.up.railway.app/api/stock',
       {
         cache: 'no-store'
       }
@@ -1056,11 +1061,9 @@ async function checkStockBeforePayment() {
 
 
   const available =
-    stock?.[
-      version
-    ]?.[
-      size
-    ] === true;
+    isAvailableValue(
+      stock?.[version]?.[size]
+    );
 
 
   if (!available) {
