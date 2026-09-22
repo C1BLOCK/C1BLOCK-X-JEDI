@@ -1,526 +1,262 @@
-import 'dotenv/config';
-
-import express from 'express';
-import Stripe from 'stripe';
-
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-
-/* =========================================================
-   BASE
-========================================================= */
+import "dotenv/config";
+import express from "express";
+import Stripe from "stripe";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 8080);
 
 const STOCK_FILE = path.join(
   __dirname,
-  'data',
-  'stock.json'
+  "data",
+  "stock.json"
 );
 
 const ORDERS_FILE = path.join(
   __dirname,
-  'data',
-  'processed-orders.json'
+  "data",
+  "orders.json"
 );
 
 
-/* =========================================================
-   VARIABILI
-========================================================= */
+/* =====================================================
+   VARIABILI RAILWAY
+===================================================== */
 
-const stripeKey =
-  process.env.STRIPE_SECRET_KEY ||
-  process.env['CHIAVE SEGRETA A STRISCIA'];
+function getEnv(name) {
+  const value = process.env[name];
 
-const adminPassword =
-  process.env.ADMIN_PASSWORD ||
-  process.env.ADMIN_PASSWORD_STOCK ||
-  process.env.PASSWORD_AMMINISTRATORE ||
-  process.env['PASSWORD AMMINISTRATORE'] ||
-  '';
+  if (typeof value !== "string") {
+    return "";
+  }
 
-const telegramBotToken =
-  process.env.TELEGRAM_BOT_TOKEN ||
-  '';
-
-const telegramChatId =
-  process.env.TELEGRAM_CHAT_ID ||
-  '';
-
-const stripeWebhookSecret =
-  process.env.STRIPE_WEBHOOK_SECRET ||
-  '';
-
-
-/* =========================================================
-   CONTROLLO VARIABILI
-========================================================= */
-
-console.log('======================================');
-console.log('CONTROLLO VARIABILI RAILWAY');
-
-console.log(
-  'PASSWORD AMMINISTRATORE:',
-  Boolean(adminPassword)
-);
-
-console.log(
-  'STRIPE_SECRET_KEY:',
-  Boolean(stripeKey)
-);
-
-console.log(
-  'STRIPE_WEBHOOK_SECRET:',
-  Boolean(stripeWebhookSecret)
-);
-
-console.log(
-  'TELEGRAM_BOT_TOKEN:',
-  Boolean(telegramBotToken)
-);
-
-console.log(
-  'TELEGRAM_CHAT_ID:',
-  Boolean(telegramChatId)
-);
-
-console.log('======================================');
-
-
-if (!stripeKey) {
-  console.error(
-    'ERRORE: STRIPE_SECRET_KEY non configurata.'
-  );
-}
-
-if (!adminPassword) {
-  console.error(
-    'ERRORE: password amministratore non configurata.'
-  );
-}
-
-if (!stripeWebhookSecret) {
-  console.error(
-    'ATTENZIONE: STRIPE_WEBHOOK_SECRET non configurata.'
-  );
+  return value.trim();
 }
 
 
-/* =========================================================
+const STRIPE_SECRET_KEY =
+  getEnv("STRIPE_SECRET_KEY");
+
+const STRIPE_WEBHOOK_SECRET =
+  getEnv("STRIPE_WEBHOOK_SECRET");
+
+const TELEGRAM_BOT_TOKEN =
+  getEnv("TELEGRAM_BOT_TOKEN");
+
+const TELEGRAM_CHAT_ID =
+  getEnv("TELEGRAM_CHAT_ID");
+
+const ADMIN_PASSWORD =
+  getEnv("ADMIN_PASSWORD");
+
+const PUBLIC_URL =
+  getEnv("PUBLIC_URL");
+
+
+/* =====================================================
+   CONFIGURAZIONE
+===================================================== */
+
+const SIZES = [
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL"
+];
+
+const VERSIONS = [
+  "30",
+  "50"
+];
+
+const PRICES = {
+  "30": 3000,
+  "50": 5000
+};
+
+
+/* =====================================================
    STRIPE
-========================================================= */
+===================================================== */
 
-const stripe = stripeKey
-  ? new Stripe(stripeKey)
-  : null;
+let stripe = null;
 
+if (STRIPE_SECRET_KEY) {
 
-/* =========================================================
-   EXPRESS
-========================================================= */
+  try {
 
-/*
-  IMPORTANTISSIMO:
-  Il webhook Stripe deve essere registrato
-  PRIMA di express.json().
-*/
-
-app.post(
-  '/api/stripe-webhook',
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-
-    if (!stripe) {
-      return res.status(500).send(
-        'Stripe non configurato.'
-      );
-    }
-
-    if (!stripeWebhookSecret) {
-      return res.status(500).send(
-        'STRIPE_WEBHOOK_SECRET non configurato.'
-      );
-    }
-
-    let event;
-
-    try {
-
-      const signature =
-        req.headers['stripe-signature'];
-
-      event =
-        stripe.webhooks.constructEvent(
-          req.body,
-          signature,
-          stripeWebhookSecret
-        );
-
-    } catch (error) {
-
-      console.error(
-        'ERRORE FIRMA WEBHOOK STRIPE:',
-        error.message
+    stripe =
+      new Stripe(
+        STRIPE_SECRET_KEY
       );
 
-      return res.status(400).send(
-        `Webhook Error: ${error.message}`
-      );
-    }
-
-
-    try {
-
-      console.log(
-        'WEBHOOK STRIPE:',
-        event.type
-      );
-
-
-      if (
-        event.type ===
-        'checkout.session.completed'
-      ) {
-
-        const session =
-          event.data.object;
-
-
-        /*
-          Controlliamo che il pagamento
-          sia effettivamente completato.
-        */
-
-        if (
-          session.payment_status !==
-          'paid'
-        ) {
-
-          console.log(
-            'Pagamento non ancora confermato.'
-          );
-
-          return res.json({
-            received: true
-          });
-
-        }
-
-
-        /*
-          METADATA STRIPE
-        */
-
-        const metadata =
-          session.metadata || {};
-
-
-        const version =
-          metadata.version === '50'
-            ? '50'
-            : '30';
-
-
-        const size =
-          String(
-            metadata.size || ''
-          )
-            .trim()
-            .toUpperCase();
-
-
-        let quantity =
-          Number.parseInt(
-            metadata.quantity,
-            10
-          );
-
-
-        if (
-          !Number.isInteger(quantity) ||
-          quantity < 1
-        ) {
-          quantity = 1;
-        }
-
-
-        const nome =
-          metadata.nome || '';
-
-        const cognome =
-          metadata.cognome || '';
-
-        const telefono =
-          metadata.telefono || '';
-
-        const email =
-          metadata.email ||
-          session.customer_details?.email ||
-          '';
-
-        const indirizzo =
-          metadata.indirizzo || '';
-
-        const cap =
-          metadata.cap || '';
-
-        const citta =
-          metadata.citta || '';
-
-        const note =
-          metadata.note || '';
-
-
-        console.log(
-          'PAGAMENTO COMPLETATO:',
-          {
-            version,
-            size,
-            quantity,
-            email
-          }
-        );
-
-
-        /*
-          PROTEZIONE DA DOPPIO WEBHOOK
-        */
-
-        const processed =
-          await readProcessedOrders();
-
-
-        if (
-          processed.includes(
-            session.id
-          )
-        ) {
-
-          console.log(
-            'Ordine già elaborato:',
-            session.id
-          );
-
-          return res.json({
-            received: true,
-            alreadyProcessed: true
-          });
-
-        }
-
-
-        /*
-          CONTROLLO STOCK
-        */
-
-        const stock =
-          await readStock();
-
-
-        const currentStock =
-          Number(
-            stock?.[version]?.[size] || 0
-          );
-
-
-        console.log(
-          'STOCK PRIMA DEL PAGAMENTO:',
-          {
-            version,
-            size,
-            quantity,
-            currentStock
-          }
-        );
-
-
-        /*
-          Se lo stock non basta,
-          non facciamo scendere il valore
-          sotto zero.
-        */
-
-        if (
-          currentStock < quantity
-        ) {
-
-          console.error(
-            'ATTENZIONE: stock insufficiente dopo pagamento.',
-            {
-              version,
-              size,
-              quantity,
-              currentStock
-            }
-          );
-
-        } else {
-
-          stock[version][size] =
-            currentStock - quantity;
-
-
-          await saveStock(stock);
-
-
-          console.log(
-            'STOCK AGGIORNATO:',
-            {
-              version,
-              size,
-              quantity,
-              nuovoStock:
-                stock[version][size]
-            }
-          );
-
-        }
-
-
-        /*
-          SEGNIAMO L'ORDINE COME ELABORATO
-        */
-
-        await addProcessedOrder(
-          session.id
-        );
-
-
-        /*
-          NOME PRODOTTO TELEGRAM
-        */
-
-        const productName =
-          version === '50'
-            ? 'MAGLIA 50€ - CON FIRMA JEDI'
-            : 'MAGLIA 30€';
-
-
-        const total =
-          (
-            Number(
-              session.amount_total || 0
-            ) / 100
-          ).toFixed(2);
-
-
-        /*
-          TELEGRAM
-        */
-
-        await sendTelegram(
-          [
-            '💰 PAGAMENTO RICEVUTO',
-            '',
-            `👕 MAGLIA: ${productName}`,
-            `📏 TAGLIA: ${size || '-'}`,
-            `🔢 QUANTITÀ: ${quantity}`,
-            `💶 TOTALE: €${total}`,
-            '',
-            `👤 NOME: ${nome} ${cognome}`.trim(),
-            `📧 EMAIL: ${email || '-'}`,
-            `📱 TELEFONO: ${telefono || '-'}`,
-            '',
-            `📍 INDIRIZZO: ${indirizzo || '-'}`,
-            `📮 CAP: ${cap || '-'}`,
-            `🏙️ CITTÀ: ${citta || '-'}`,
-            '',
-            `📝 NOTE: ${note || '-'}`,
-            '',
-            `🧾 ORDINE: ${session.id}`
-          ].join('\n')
-        );
-
-
-        console.log(
-          'NOTIFICA TELEGRAM INVIATA.'
-        );
-
-      }
-
-
-      return res.json({
-        received: true
-      });
-
-
-    } catch (error) {
-
-      console.error(
-        'ERRORE GESTIONE WEBHOOK:',
-        error
-      );
-
-      return res.status(500).json({
-        error:
-          'Errore gestione webhook.'
-      });
-
-    }
+    console.log(
+      "Stripe configurato correttamente."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "ERRORE STRIPE:",
+      error.message
+    );
 
   }
+
+} else {
+
+  console.error(
+    "ERRORE: STRIPE_SECRET_KEY non configurata."
+  );
+
+}
+
+
+/* =====================================================
+   CONTROLLO VARIABILI
+===================================================== */
+
+console.log(
+  "=========================================="
+);
+
+console.log(
+  "CONTROLLO VARIABILI RAILWAY"
+);
+
+console.log(
+  "ADMIN_PASSWORD:",
+  Boolean(ADMIN_PASSWORD)
+);
+
+console.log(
+  "STRIPE_SECRET_KEY:",
+  Boolean(STRIPE_SECRET_KEY)
+);
+
+console.log(
+  "STRIPE_WEBHOOK_SECRET:",
+  Boolean(STRIPE_WEBHOOK_SECRET)
+);
+
+console.log(
+  "TELEGRAM_BOT_TOKEN:",
+  Boolean(TELEGRAM_BOT_TOKEN)
+);
+
+console.log(
+  "TELEGRAM_CHAT_ID:",
+  Boolean(TELEGRAM_CHAT_ID)
+);
+
+console.log(
+  "=========================================="
 );
 
 
-/* =========================================================
-   JSON
-========================================================= */
+/* =====================================================
+   FUNZIONI GENERALI
+===================================================== */
 
-app.use(
-  express.json()
-);
+function clean(value) {
 
-app.use(
-  express.urlencoded({
-    extended: true
-  })
-);
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
 
+  return String(value).trim();
 
-/* =========================================================
-   FILE STATICI
-========================================================= */
-
-app.use(
-  express.static(__dirname)
-);
+}
 
 
-/* =========================================================
-   STOCK
-========================================================= */
+function normalizeVersion(value) {
 
-const versions = [
-  '30',
-  '50'
-];
+  const text =
+    clean(value).toLowerCase();
 
-const sizes = [
-  'S',
-  'M',
-  'L',
-  'XL',
-  'XXL'
-];
+  if (text.includes("50")) {
+    return "50";
+  }
+
+  if (text.includes("30")) {
+    return "30";
+  }
+
+  return "";
+}
 
 
-/* =========================================================
-   STOCK DEFAULT
-========================================================= */
+function normalizeSize(value) {
+
+  const size =
+    clean(value)
+      .toUpperCase();
+
+  if (
+    SIZES.includes(size)
+  ) {
+    return size;
+  }
+
+  return "";
+}
+
+
+function normalizeQuantity(value) {
+
+  let quantity =
+    Number.parseInt(
+      value,
+      10
+    );
+
+  if (
+    !Number.isInteger(quantity)
+  ) {
+    quantity = 1;
+  }
+
+  if (quantity < 1) {
+    quantity = 1;
+  }
+
+  if (quantity > 5) {
+    quantity = 5;
+  }
+
+  return quantity;
+
+}
+
+
+function json(res, data, status = 200) {
+
+  return res
+    .status(status)
+    .json(data);
+
+}
+
+
+/* =====================================================
+   FILE STOCK
+===================================================== */
 
 function createDefaultStock() {
 
   return {
 
-    '30': {
+    "30": {
       S: 15,
       M: 18,
       L: 15,
@@ -528,7 +264,7 @@ function createDefaultStock() {
       XXL: 3
     },
 
-    '50': {
+    "50": {
       S: 15,
       M: 18,
       L: 15,
@@ -541,97 +277,33 @@ function createDefaultStock() {
 }
 
 
-/* =========================================================
-   NORMALIZZA STOCK
-========================================================= */
-
-function normalizeStock(stock) {
-
-  const result =
-    createDefaultStock();
-
-
-  for (
-    const version of versions
-  ) {
-
-    for (
-      const size of sizes
-    ) {
-
-      const value =
-        Number(
-          stock?.[version]?.[size]
-        );
-
-
-      if (
-        Number.isFinite(value) &&
-        value >= 0
-      ) {
-
-        result[version][size] =
-          Math.floor(value);
-
-      }
-
-    }
-
-  }
-
-
-  return result;
-
-}
-
-
-/* =========================================================
-   LEGGI STOCK
-========================================================= */
+/* =====================================================
+   LETTURA STOCK
+===================================================== */
 
 async function readStock() {
 
   try {
 
-    await fs.mkdir(
-      path.dirname(STOCK_FILE),
-      {
-        recursive: true
-      }
-    );
-
-
-    const content =
+    const data =
       await fs.readFile(
         STOCK_FILE,
-        'utf8'
+        "utf8"
       );
 
+    const stock =
+      JSON.parse(data);
 
-    const parsed =
-      JSON.parse(content);
-
-
-    return normalizeStock(
-      parsed
+    return normalizeStockObject(
+      stock
     );
 
-
-  } catch (error) {
-
-    console.log(
-      'stock.json non trovato. Creo stock iniziale.'
-    );
-
+  } catch {
 
     const stock =
       createDefaultStock();
 
-
-    await saveStock(
-      stock
-    );
-
+    await saveStock(stock);
 
     return stock;
 
@@ -640,9 +312,53 @@ async function readStock() {
 }
 
 
-/* =========================================================
+/* =====================================================
+   NORMALIZZA STOCK
+===================================================== */
+
+function normalizeStockObject(data) {
+
+  const stock =
+    createDefaultStock();
+
+
+  for (
+    const version of VERSIONS
+  ) {
+
+    for (
+      const size of SIZES
+    ) {
+
+      const value =
+        Number(
+          data?.[version]?.[size]
+        );
+
+
+      if (
+        Number.isInteger(value) &&
+        value >= 0
+      ) {
+
+        stock[version][size] =
+          value;
+
+      }
+
+    }
+
+  }
+
+
+  return stock;
+
+}
+
+
+/* =====================================================
    SALVA STOCK
-========================================================= */
+===================================================== */
 
 async function saveStock(stock) {
 
@@ -654,66 +370,43 @@ async function saveStock(stock) {
   );
 
 
-  const normalized =
-    normalizeStock(
-      stock
-    );
-
-
   await fs.writeFile(
     STOCK_FILE,
     JSON.stringify(
-      normalized,
+      normalizeStockObject(stock),
       null,
       2
     ),
-    'utf8'
+    "utf8"
   );
-
-
-  return normalized;
 
 }
 
 
-/* =========================================================
+/* =====================================================
    ORDINI ELABORATI
-========================================================= */
+===================================================== */
 
-async function readProcessedOrders() {
+async function readOrders() {
 
   try {
 
-    await fs.mkdir(
-      path.dirname(ORDERS_FILE),
-      {
-        recursive: true
-      }
-    );
-
-
-    const content =
+    const data =
       await fs.readFile(
         ORDERS_FILE,
-        'utf8'
+        "utf8"
       );
 
-
-    const parsed =
-      JSON.parse(content);
-
+    const orders =
+      JSON.parse(data);
 
     if (
-      Array.isArray(parsed)
+      !Array.isArray(orders)
     ) {
-
-      return parsed;
-
+      return [];
     }
 
-
-    return [];
-
+    return orders;
 
   } catch {
 
@@ -724,36 +417,7 @@ async function readProcessedOrders() {
 }
 
 
-async function addProcessedOrder(
-  orderId
-) {
-
-  const orders =
-    await readProcessedOrders();
-
-
-  if (
-    orders.includes(orderId)
-  ) {
-
-    return;
-
-  }
-
-
-  orders.push(
-    orderId
-  );
-
-
-  /*
-    Manteniamo solo gli ultimi
-    1000 ordini elaborati.
-  */
-
-  const limited =
-    orders.slice(-1000);
-
+async function saveOrders(orders) {
 
   await fs.mkdir(
     path.dirname(ORDERS_FILE),
@@ -766,99 +430,30 @@ async function addProcessedOrder(
   await fs.writeFile(
     ORDERS_FILE,
     JSON.stringify(
-      limited,
+      orders,
       null,
       2
     ),
-    'utf8'
+    "utf8"
   );
 
 }
 
 
-/* =========================================================
-   TELEGRAM
-========================================================= */
+/* =====================================================
+   STOCK PUBBLICO
+=====================================================
 
-async function sendTelegram(
-  message
-) {
+   Il cliente NON vede le quantità.
 
-  if (
-    !telegramBotToken ||
-    !telegramChatId
-  ) {
+   Vede solamente:
 
-    console.error(
-      'TELEGRAM NON CONFIGURATO.'
-    );
-
-    return false;
-
-  }
-
-
-  const url =
-    `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
-
-
-  const response =
-    await fetch(
-      url,
-      {
-        method: 'POST',
-
-        headers: {
-          'Content-Type':
-            'application/json'
-        },
-
-        body:
-          JSON.stringify({
-            chat_id:
-              telegramChatId,
-
-            text:
-              message,
-
-            disable_web_page_preview:
-              true
-          })
-      }
-    );
-
-
-  const data =
-    await response
-      .json()
-      .catch(
-        () => ({})
-      );
-
-
-  if (!response.ok) {
-
-    console.error(
-      'ERRORE TELEGRAM:',
-      data
-    );
-
-    return false;
-
-  }
-
-
-  return true;
-
-}
-
-
-/* =========================================================
-   API STOCK PUBBLICA
-========================================================= */
+   true  = disponibile
+   false = SOLD OUT
+===================================================== */
 
 app.get(
-  '/api/stock',
+  "/api/stock",
   async (req, res) => {
 
     try {
@@ -868,17 +463,17 @@ app.get(
 
 
       const available = {
-        '30': {},
-        '50': {}
+        "30": {},
+        "50": {}
       };
 
 
       for (
-        const version of versions
+        const version of VERSIONS
       ) {
 
         for (
-          const size of sizes
+          const size of SIZES
         ) {
 
           available[version][size] =
@@ -891,29 +486,27 @@ app.get(
       }
 
 
-      res.set(
-        'Cache-Control',
-        'no-store, no-cache, must-revalidate, proxy-revalidate'
-      );
-
-
-      return res.json(
+      return json(
+        res,
         available
       );
 
-
     } catch (error) {
 
       console.error(
-        'ERRORE API STOCK:',
+        "STOCK PUBLIC ERROR:",
         error
       );
 
 
-      return res.status(500).json({
-        error:
-          'Errore caricamento stock.'
-      });
+      return json(
+        res,
+        {
+          error:
+            "Errore caricamento stock."
+        },
+        500
+      );
 
     }
 
@@ -921,149 +514,186 @@ app.get(
 );
 
 
-/* =========================================================
-   PASSWORD ADMIN
-========================================================= */
+/* =====================================================
+   STOCK ADMIN
+=====================================================
 
-function checkAdminPassword(req) {
+   Supporta:
 
-  if (!adminPassword) {
-    return false;
-  }
+   POST /api/stock
 
+   {
+     action: "get",
+     password: "..."
+   }
 
-  const supplied =
-    String(
-      req.headers[
-        'x-admin-password'
-      ] || ''
-    ).trim();
+   oppure:
 
+   {
+     action: "set",
+     password: "...",
+     stock: {...}
+   }
+===================================================== */
 
-  return (
-    supplied ===
-    adminPassword
-  );
-
-}
-
-
-/* =========================================================
-   ADMIN STOCK GET
-========================================================= */
-
-app.get(
-  '/api/admin/stock',
+app.post(
+  "/api/stock",
   async (req, res) => {
-
-    if (
-      !checkAdminPassword(req)
-    ) {
-
-      return res.status(401).json({
-        error:
-          'Password amministratore non valida.'
-      });
-
-    }
-
 
     try {
 
-      const stock =
-        await readStock();
+      const body =
+        req.body || {};
+
+      const action =
+        clean(body.action);
+
+      const password =
+        clean(body.password);
 
 
-      res.set(
-        'Cache-Control',
-        'no-store, no-cache, must-revalidate'
-      );
+      if (!ADMIN_PASSWORD) {
 
-
-      return res.json({
-        stock
-      });
-
-
-    } catch (error) {
-
-      console.error(
-        'ERRORE ADMIN STOCK GET:',
-        error
-      );
-
-
-      return res.status(500).json({
-        error:
-          'Errore caricamento stock.'
-      });
-
-    }
-
-  }
-);
-
-
-/* =========================================================
-   ADMIN STOCK PUT
-========================================================= */
-
-app.put(
-  '/api/admin/stock',
-  async (req, res) => {
-
-    if (
-      !checkAdminPassword(req)
-    ) {
-
-      return res.status(401).json({
-        error:
-          'Password amministratore non valida.'
-      });
-
-    }
-
-
-    try {
-
-      const newStock =
-        normalizeStock(
-          req.body
+        return json(
+          res,
+          {
+            error:
+              "ADMIN_PASSWORD non configurata."
+          },
+          500
         );
 
+      }
 
-      const saved =
+
+      if (
+        password !== ADMIN_PASSWORD
+      ) {
+
+        return json(
+          res,
+          {
+            error:
+              "Password ADMIN non corretta."
+          },
+          401
+        );
+
+      }
+
+
+      if (
+        action === "get"
+      ) {
+
+        const stock =
+          await readStock();
+
+        return json(
+          res,
+          stock
+        );
+
+      }
+
+
+      if (
+        action === "set"
+      ) {
+
+        const newStock =
+          normalizeStockObject(
+            body.stock
+          );
+
+
+        for (
+          const version of VERSIONS
+        ) {
+
+          for (
+            const size of SIZES
+          ) {
+
+            const value =
+              Number(
+                body.stock?.[
+                  version
+                ]?.[
+                  size
+                ]
+              );
+
+
+            if (
+              !Number.isInteger(value) ||
+              value < 0 ||
+              value > 10000
+            ) {
+
+              return json(
+                res,
+                {
+                  error:
+                    `Stock non valido: ${version}€ - ${size}`
+                },
+                400
+              );
+
+            }
+
+          }
+
+        }
+
+
         await saveStock(
           newStock
         );
 
 
-      console.log(
-        'STOCK AGGIORNATO:',
-        JSON.stringify(
-          saved
-        )
+        console.log(
+          "STOCK AGGIORNATO:",
+          newStock
+        );
+
+
+        return json(
+          res,
+          {
+            ok: true,
+            stock: newStock
+          }
+        );
+
+      }
+
+
+      return json(
+        res,
+        {
+          error:
+            "Azione non valida."
+        },
+        400
       );
-
-
-      return res.json({
-        success: true,
-        stock: saved
-      });
-
 
     } catch (error) {
 
       console.error(
-        'ERRORE ADMIN STOCK PUT:',
+        "ADMIN STOCK ERROR:",
         error
       );
 
 
-      return res.status(500).json({
-        error:
-          'Errore salvataggio stock.'
-      });
+      return json(
+        res,
+        {
+          error:
+            "Errore gestione stock."
+        },
+        500
+      );
 
     }
 
@@ -1071,325 +701,1318 @@ app.put(
 );
 
 
-/* =========================================================
-   CREATE CHECKOUT STRIPE
-========================================================= */
+/* =====================================================
+   ADMIN STOCK
+   COMPATIBILITÀ CON admin-stock.html
+===================================================== */
+
+app.get(
+  "/api/admin/stock",
+  async (req, res) => {
+
+    try {
+
+      const password =
+        clean(
+          req.headers[
+            "x-admin-password"
+          ]
+        );
+
+
+      if (
+        !ADMIN_PASSWORD ||
+        password !== ADMIN_PASSWORD
+      ) {
+
+        return json(
+          res,
+          {
+            error:
+              "Password non valida."
+          },
+          401
+        );
+
+      }
+
+
+      const stock =
+        await readStock();
+
+
+      return json(
+        res,
+        stock
+      );
+
+    } catch (error) {
+
+      console.error(
+        "ADMIN GET STOCK ERROR:",
+        error
+      );
+
+
+      return json(
+        res,
+        {
+          error:
+            "Errore caricamento stock."
+        },
+        500
+      );
+
+    }
+
+  }
+);
+
+
+app.put(
+  "/api/admin/stock",
+  async (req, res) => {
+
+    try {
+
+      const password =
+        clean(
+          req.headers[
+            "x-admin-password"
+          ]
+        );
+
+
+      if (
+        !ADMIN_PASSWORD ||
+        password !== ADMIN_PASSWORD
+      ) {
+
+        return json(
+          res,
+          {
+            error:
+              "Password non valida."
+          },
+          401
+        );
+
+      }
+
+
+      const newStock =
+        normalizeStockObject(
+          req.body
+        );
+
+
+      for (
+        const version of VERSIONS
+      ) {
+
+        for (
+          const size of SIZES
+        ) {
+
+          const value =
+            Number(
+              req.body?.[
+                version
+              ]?.[
+                size
+              ]
+            );
+
+
+          if (
+            !Number.isInteger(value) ||
+            value < 0 ||
+            value > 10000
+          ) {
+
+            return json(
+              res,
+              {
+                error:
+                  `Valore non valido: ${version}€ - ${size}`
+              },
+              400
+            );
+
+          }
+
+        }
+
+      }
+
+
+      await saveStock(
+        newStock
+      );
+
+
+      console.log(
+        "ADMIN STOCK AGGIORNATO:",
+        newStock
+      );
+
+
+      return json(
+        res,
+        {
+          ok: true,
+          stock: newStock
+        }
+      );
+
+    } catch (error) {
+
+      console.error(
+        "ADMIN PUT STOCK ERROR:",
+        error
+      );
+
+
+      return json(
+        res,
+        {
+          error:
+            "Errore salvataggio stock."
+        },
+        500
+      );
+
+    }
+
+  }
+);
+
+
+/* =====================================================
+   STRIPE CHECKOUT
+===================================================== */
+
+async function createCheckout(
+  req,
+  res
+) {
+
+  try {
+
+    if (!stripe) {
+
+      return json(
+        res,
+        {
+          error:
+            "Stripe non configurato sul server."
+        },
+        500
+      );
+
+    }
+
+
+    const body =
+      req.body || {};
+
+
+    const nome =
+      clean(body.nome);
+
+    const cognome =
+      clean(body.cognome);
+
+    const telefono =
+      clean(body.telefono);
+
+    const email =
+      clean(body.email);
+
+    const indirizzo =
+      clean(body.indirizzo);
+
+    const cap =
+      clean(body.cap);
+
+    const citta =
+      clean(body.citta);
+
+    const note =
+      clean(body.note);
+
+
+    const version =
+      normalizeVersion(
+        body.version ??
+        body.versione
+      );
+
+
+    const size =
+      normalizeSize(
+        body.size ??
+        body.taglia
+      );
+
+
+    const quantity =
+      normalizeQuantity(
+        body.quantity ??
+        body.quantita
+      );
+
+
+    /* =================================================
+       CONTROLLO DATI
+    ================================================= */
+
+    if (!nome) {
+
+      return json(
+        res,
+        {
+          error:
+            "Inserisci il nome."
+        },
+        400
+      );
+
+    }
+
+
+    if (!cognome) {
+
+      return json(
+        res,
+        {
+          error:
+            "Inserisci il cognome."
+        },
+        400
+      );
+
+    }
+
+
+    if (!telefono) {
+
+      return json(
+        res,
+        {
+          error:
+            "Inserisci il telefono."
+        },
+        400
+      );
+
+    }
+
+
+    if (!email) {
+
+      return json(
+        res,
+        {
+          error:
+            "Inserisci l'email."
+        },
+        400
+      );
+
+    }
+
+
+    if (!indirizzo) {
+
+      return json(
+        res,
+        {
+          error:
+            "Inserisci l'indirizzo."
+        },
+        400
+      );
+
+    }
+
+
+    if (!cap) {
+
+      return json(
+        res,
+        {
+          error:
+            "Inserisci il CAP."
+        },
+        400
+      );
+
+    }
+
+
+    if (!citta) {
+
+      return json(
+        res,
+        {
+          error:
+            "Inserisci la città."
+        },
+        400
+      );
+
+    }
+
+
+    if (!version) {
+
+      return json(
+        res,
+        {
+          error:
+            "Versione prodotto non valida."
+        },
+        400
+      );
+
+    }
+
+
+    if (!size) {
+
+      return json(
+        res,
+        {
+          error:
+            "Taglia non valida."
+        },
+        400
+      );
+
+    }
+
+
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        .test(email)
+    ) {
+
+      return json(
+        res,
+        {
+          error:
+            "Email non valida."
+        },
+        400
+      );
+
+    }
+
+
+    /* =================================================
+       STOCK
+    ================================================= */
+
+    const stock =
+      await readStock();
+
+
+    const currentStock =
+      Number(
+        stock?.[
+          version
+        ]?.[
+          size
+        ] || 0
+      );
+
+
+    if (
+      currentStock <= 0
+    ) {
+
+      return json(
+        res,
+        {
+          error:
+            "Questa taglia è SOLD OUT."
+        },
+        409
+      );
+
+    }
+
+
+    if (
+      quantity > currentStock
+    ) {
+
+      return json(
+        res,
+        {
+          error:
+            `Disponibilità massima: ${currentStock}`
+        },
+        409
+      );
+
+    }
+
+
+    /* =================================================
+       URL
+    ================================================= */
+
+    const origin =
+      PUBLIC_URL ||
+      `${req.protocol}://${req.get("host")}`;
+
+
+    /* =================================================
+       TESTO VERSIONE
+    ================================================= */
+
+    const versionName =
+      version === "50"
+        ? "Maglia con firma di Jedi — 50€"
+        : "Maglia — 30€";
+
+
+    /* =================================================
+       CHECKOUT STRIPE
+    ================================================= */
+
+    const session =
+      await stripe.checkout.sessions.create({
+
+        mode:
+          "payment",
+
+
+        line_items: [
+
+          {
+
+            price_data: {
+
+              currency:
+                "eur",
+
+              product_data: {
+
+                name:
+                  version === "50"
+                    ? "C1BLOCK X JEDI — Maglia con firma"
+                    : "C1BLOCK X JEDI — Maglia"
+
+              },
+
+              unit_amount:
+                PRICES[version]
+
+            },
+
+            quantity:
+              quantity
+
+          }
+
+        ],
+
+
+        customer_email:
+          email,
+
+
+        billing_address_collection:
+          "required",
+
+
+        metadata: {
+
+          versione:
+            versionName,
+
+          taglia:
+            size,
+
+          quantita:
+            String(quantity),
+
+          nome:
+            nome,
+
+          cognome:
+            cognome,
+
+          telefono:
+            telefono,
+
+          email:
+            email,
+
+          indirizzo:
+            indirizzo,
+
+          cap:
+            cap,
+
+          citta:
+            citta,
+
+          note:
+            note
+
+        },
+
+
+        success_url:
+          `${origin}/thank-you.html`,
+
+
+        cancel_url:
+          `${origin}/index.html`
+
+      });
+
+
+    console.log(
+      "CHECKOUT CREATO:",
+      {
+        sessionId:
+          session.id,
+
+        versione:
+          versionName,
+
+        taglia:
+          size,
+
+        quantita:
+          quantity
+      }
+    );
+
+
+    return json(
+      res,
+      {
+        url:
+          session.url
+      }
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "STRIPE CHECKOUT ERROR:",
+      error
+    );
+
+
+    return json(
+      res,
+      {
+        error:
+          "Impossibile avviare il pagamento."
+      },
+      500
+    );
+
+  }
+
+}
+
+
+/* =====================================================
+   ENDPOINT CHECKOUT
+===================================================== */
 
 app.post(
-  '/api/create-checkout',
+  "/api/create-checkout",
+  createCheckout
+);
+
+
+/*
+   Compatibilità con eventuale vecchio app.js
+*/
+
+app.post(
+  "/create-checkout-session",
+  createCheckout
+);
+
+
+/* =====================================================
+   TELEGRAM
+===================================================== */
+
+async function sendTelegram(
+  message
+) {
+
+  if (
+    !TELEGRAM_BOT_TOKEN ||
+    !TELEGRAM_CHAT_ID
+  ) {
+
+    console.error(
+      "Telegram non configurato."
+    );
+
+    return false;
+
+  }
+
+
+  try {
+
+    const response =
+      await fetch(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+        {
+
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify({
+
+              chat_id:
+                TELEGRAM_CHAT_ID,
+
+              text:
+                message
+
+            })
+
+        }
+      );
+
+
+    if (!response.ok) {
+
+      const errorText =
+        await response.text();
+
+
+      console.error(
+        "TELEGRAM ERROR:",
+        errorText
+      );
+
+
+      return false;
+
+    }
+
+
+    console.log(
+      "NOTIFICA TELEGRAM INVIATA."
+    );
+
+
+    return true;
+
+  } catch (error) {
+
+    console.error(
+      "TELEGRAM ERROR:",
+      error
+    );
+
+
+    return false;
+
+  }
+
+}
+
+
+/* =====================================================
+   WEBHOOK STRIPE
+=====================================================
+
+   IMPORTANTE:
+
+   Questa rotta deve stare PRIMA di
+   express.json().
+
+   Stripe richiede il body RAW
+   per verificare la firma.
+===================================================== */
+
+app.post(
+  "/api/stripe-webhook",
+  express.raw({
+    type:
+      "application/json"
+  }),
   async (req, res) => {
 
     try {
 
       if (!stripe) {
 
-        return res.status(500).json({
-          error:
-            'Stripe non configurato sul server.'
-        });
+        return res.status(500).send(
+          "Stripe non configurato"
+        );
 
       }
 
 
-      const {
-        nome,
-        cognome,
-        telefono,
-        email,
-        indirizzo,
-        cap,
-        citta,
-        version,
-        size,
-        quantity,
-        note
-      } = req.body || {};
+      if (
+        !STRIPE_WEBHOOK_SECRET
+      ) {
+
+        return res.status(500).send(
+          "STRIPE_WEBHOOK_SECRET non configurata"
+        );
+
+      }
 
 
-      /* -----------------------------------------
-         VERSIONE
-      ----------------------------------------- */
-
-      const selectedVersion =
-        String(
-          version || ''
-        ).includes('50')
-          ? '50'
-          : '30';
+      const signature =
+        req.headers[
+          "stripe-signature"
+        ];
 
 
-      /* -----------------------------------------
-         TAGLIA
-      ----------------------------------------- */
+      if (!signature) {
 
-      const selectedSize =
-        String(
-          size || ''
-        )
-          .trim()
-          .toUpperCase();
+        return res.status(400).send(
+          "Stripe signature mancante"
+        );
+
+      }
 
 
-      /* -----------------------------------------
-         QUANTITÀ
-      ----------------------------------------- */
+      let event;
 
-      const selectedQuantity =
-        Number.parseInt(
-          quantity,
-          10
+
+      try {
+
+        event =
+          stripe.webhooks.constructEvent(
+            req.body,
+            signature,
+            STRIPE_WEBHOOK_SECRET
+          );
+
+      } catch (error) {
+
+        console.error(
+          "STRIPE WEBHOOK SIGNATURE ERROR:",
+          error.message
         );
 
 
-      /* -----------------------------------------
-         VALIDAZIONE TAGLIA
-      ----------------------------------------- */
-
-      if (
-        !sizes.includes(
-          selectedSize
-        )
-      ) {
-
-        return res.status(400).json({
-          error:
-            'Taglia non valida.'
-        });
-
-      }
-
-
-      /* -----------------------------------------
-         VALIDAZIONE QUANTITÀ
-      ----------------------------------------- */
-
-      if (
-        !Number.isInteger(
-          selectedQuantity
-        ) ||
-        selectedQuantity < 1 ||
-        selectedQuantity > 5
-      ) {
-
-        return res.status(400).json({
-          error:
-            'Quantità non valida.'
-        });
-
-      }
-
-
-      /* -----------------------------------------
-         CONTROLLO STOCK
-      ----------------------------------------- */
-
-      const stock =
-        await readStock();
-
-
-      const currentStock =
-        Number(
-          stock?.[
-            selectedVersion
-          ]?.[
-            selectedSize
-          ] || 0
+        return res.status(400).send(
+          "Invalid signature"
         );
+
+      }
 
 
       console.log(
-        'CONTROLLO STOCK ORDINE:',
-        {
-          version:
-            selectedVersion,
-
-          size:
-            selectedSize,
-
-          quantity:
-            selectedQuantity,
-
-          stock:
-            currentStock
-        }
+        "STRIPE WEBHOOK:",
+        event.type
       );
 
 
+      /* ===============================================
+         PAGAMENTO COMPLETATO
+      =============================================== */
+
       if (
-        currentStock <
-        selectedQuantity
+        event.type ===
+        "checkout.session.completed"
       ) {
 
-        return res.status(400).json({
-          error:
-            `Prodotto esaurito o quantità non disponibile. Disponibili: ${currentStock}.`
-        });
+        let session =
+          event.data.object;
+
+
+        /*
+          Se per qualche motivo metadata
+          non fosse presente nell'evento,
+          recuperiamo la sessione direttamente
+          da Stripe.
+        */
+
+        if (
+          !session.metadata ||
+          !session.metadata.taglia ||
+          !session.metadata.quantita ||
+          !session.metadata.versione
+        ) {
+
+          try {
+
+            session =
+              await stripe.checkout.sessions.retrieve(
+                session.id,
+                {
+                  expand: [
+                    "line_items"
+                  ]
+                }
+              );
+
+          } catch (error) {
+
+            console.error(
+              "ERRORE RECUPERO SESSIONE STRIPE:",
+              error
+            );
+
+          }
+
+        }
+
+
+        if (
+          session.payment_status !==
+          "paid"
+        ) {
+
+          console.log(
+            "Pagamento non ancora pagato:",
+            session.id
+          );
+
+
+          return res.send(
+            "Ignored: not paid"
+          );
+
+        }
+
+
+        const metadata =
+          session.metadata || {};
+
+
+        /* =============================================
+           DATI ORDINE
+        ============================================= */
+
+        let version =
+          normalizeVersion(
+            metadata.versione
+          );
+
+
+        let size =
+          normalizeSize(
+            metadata.taglia
+          );
+
+
+        let quantity =
+          normalizeQuantity(
+            metadata.quantita
+          );
+
+
+        /*
+          FALLBACK QUANTITÀ DA STRIPE
+        */
+
+        if (
+          session.line_items?.data?.length
+        ) {
+
+          const stripeQuantity =
+            Number(
+              session
+                .line_items
+                .data[0]
+                .quantity
+            );
+
+
+          if (
+            Number.isInteger(
+              stripeQuantity
+            ) &&
+            stripeQuantity > 0
+          ) {
+
+            quantity =
+              Math.min(
+                stripeQuantity,
+                5
+              );
+
+          }
+
+        }
+
+
+        /*
+          FALLBACK VERSIONE DAL TOTALE
+        */
+
+        if (!version) {
+
+          const total =
+            Number(
+              session.amount_total || 0
+            );
+
+
+          if (
+            total === 5000
+          ) {
+
+            version =
+              "50";
+
+          } else if (
+            total === 3000
+          ) {
+
+            version =
+              "30";
+
+          }
+
+        }
+
+
+        /* =============================================
+           PROTEZIONE DOPPIO WEBHOOK
+        ============================================= */
+
+        const orders =
+          await readOrders();
+
+
+        if (
+          orders.includes(
+            session.id
+          )
+        ) {
+
+          console.log(
+            "Ordine già elaborato:",
+            session.id
+          );
+
+
+          return res.send(
+            "ok"
+          );
+
+        }
+
+
+        /* =============================================
+           AGGIORNA STOCK
+        ============================================= */
+
+        if (
+          version &&
+          size
+        ) {
+
+          const stock =
+            await readStock();
+
+
+          const currentStock =
+            Number(
+              stock?.[
+                version
+              ]?.[
+                size
+              ] || 0
+            );
+
+
+          if (
+            currentStock >= quantity
+          ) {
+
+            stock[
+              version
+            ][
+              size
+            ] =
+              currentStock -
+              quantity;
+
+
+            await saveStock(
+              stock
+            );
+
+
+            console.log(
+              "STOCK AGGIORNATO:",
+              {
+                versione:
+                  version,
+
+                taglia:
+                  size,
+
+                quantita:
+                  quantity,
+
+                nuovoStock:
+                  stock[
+                    version
+                  ][
+                    size
+                  ]
+              }
+            );
+
+          } else {
+
+            console.error(
+              "STOCK INSUFFICIENTE AL MOMENTO DEL PAGAMENTO:",
+              {
+                versione:
+                  version,
+
+                taglia:
+                  size,
+
+                quantita:
+                  quantity,
+
+                stock:
+                  currentStock
+              }
+            );
+
+          }
+
+        }
+
+
+        /* =============================================
+           SALVA ORDINE ELABORATO
+        ============================================= */
+
+        orders.push(
+          session.id
+        );
+
+
+        await saveOrders(
+          orders
+        );
+
+
+        /* =============================================
+           DATI CLIENTE
+        ============================================= */
+
+        const nome =
+          clean(
+            metadata.nome
+          ) ||
+          clean(
+            session.customer_details
+              ?.name
+          );
+
+
+        const cognome =
+          clean(
+            metadata.cognome
+          );
+
+
+        const telefono =
+          clean(
+            metadata.telefono
+          );
+
+
+        const email =
+          clean(
+            metadata.email
+          ) ||
+          clean(
+            session.customer_details
+              ?.email
+          );
+
+
+        const indirizzo =
+          clean(
+            metadata.indirizzo
+          );
+
+
+        const cap =
+          clean(
+            metadata.cap
+          );
+
+
+        const citta =
+          clean(
+            metadata.citta
+          );
+
+
+        const note =
+          clean(
+            metadata.note
+          );
+
+
+        /* =============================================
+           VERSIONE TELEGRAM
+        ============================================= */
+
+        let versionText =
+          "-";
+
+
+        if (
+          version === "50"
+        ) {
+
+          versionText =
+            "Maglia con firma di Jedi — 50€";
+
+        } else if (
+          version === "30"
+        ) {
+
+          versionText =
+            "Maglia — 30€";
+
+        } else if (
+          metadata.versione
+        ) {
+
+          versionText =
+            metadata.versione;
+
+        }
+
+
+        /* =============================================
+           TOTALE
+        ============================================= */
+
+        const total =
+          (
+            Number(
+              session.amount_total ||
+              0
+            ) / 100
+          ).toFixed(2);
+
+
+        /* =============================================
+           TELEGRAM
+        ============================================= */
+
+        const message =
+          "💳 PAGAMENTO RICEVUTO — C1BLOCK X JEDI\n\n" +
+
+          `👤 ${nome || "-"} ${cognome || "-"}\n` +
+
+          `📞 ${telefono || "-"}\n` +
+
+          `📧 ${email || "-"}\n\n` +
+
+          `📍 ${indirizzo || "-"}\n` +
+
+          `${cap || "-"} ${citta || "-"}\n\n` +
+
+          `👕 Taglia: ${size || "-"}\n` +
+
+          `🔢 Quantità: ${quantity}\n` +
+
+          `💰 Versione: ${versionText}\n` +
+
+          `💶 Totale: €${total}\n` +
+
+          `🆔 Stripe: ${session.id}` +
+
+          (
+            note
+              ? `\n\n📝 Note: ${note}`
+              : ""
+          );
+
+
+        console.log(
+          "DATI ORDINE TELEGRAM:",
+          {
+            versione:
+              versionText,
+
+            taglia:
+              size,
+
+            quantita:
+              quantity,
+
+            totale:
+              total
+          }
+        );
+
+
+        await sendTelegram(
+          message
+        );
 
       }
 
 
-      /* -----------------------------------------
-         PREZZI
-      ----------------------------------------- */
+      /* ===============================================
+         SESSIONE SCADUTA
+      =============================================== */
 
-      const prices = {
+      else if (
+        event.type ===
+        "checkout.session.expired"
+      ) {
 
-        '30': 3000,
+        console.log(
+          "CHECKOUT SCADUTO:",
+          event.data.object.id
+        );
 
-        '50': 5000
-
-      };
-
-
-      const productName =
-        selectedVersion === '50'
-          ? 'C1BLOCK X JEDI - T-Shirt con firma'
-          : 'C1BLOCK X JEDI - T-Shirt';
+      }
 
 
-      /* -----------------------------------------
-         URL
-      ----------------------------------------- */
-
-      const origin =
-        process.env.PUBLIC_URL ||
-        `http://localhost:${PORT}`;
-
-
-      /* -----------------------------------------
-         STRIPE CHECKOUT
-      ----------------------------------------- */
-
-      const session =
-        await stripe.checkout.sessions.create({
-
-          mode:
-            'payment',
-
-
-          line_items: [
-
-            {
-
-              price_data: {
-
-                currency:
-                  'eur',
-
-
-                product_data: {
-
-                  name:
-                    productName
-
-                },
-
-
-                unit_amount:
-                  prices[
-                    selectedVersion
-                  ]
-
-              },
-
-
-              quantity:
-                selectedQuantity
-
-            }
-
-          ],
-
-
-          customer_email:
-            email || undefined,
-
-
-          metadata: {
-
-            version:
-              selectedVersion,
-
-            size:
-              selectedSize,
-
-            quantity:
-              String(
-                selectedQuantity
-              ),
-
-            nome:
-              String(
-                nome || ''
-              ),
-
-            cognome:
-              String(
-                cognome || ''
-              ),
-
-            telefono:
-              String(
-                telefono || ''
-              ),
-
-            email:
-              String(
-                email || ''
-              ),
-
-            indirizzo:
-              String(
-                indirizzo || ''
-              ),
-
-            cap:
-              String(
-                cap || ''
-              ),
-
-            citta:
-              String(
-                citta || ''
-              ),
-
-            note:
-              String(
-                note || ''
-              )
-
-          },
-
-
-          success_url:
-            `${origin}/thank-you.html`,
-
-
-          cancel_url:
-            `${origin}/index.html`
-
-        });
-
-
-      return res.json({
-        url:
-          session.url
-      });
+      return res.send(
+        "ok"
+      );
 
 
     } catch (error) {
 
       console.error(
-        'STRIPE CHECKOUT ERROR:',
+        "STRIPE WEBHOOK ERROR:",
         error
       );
 
 
-      return res.status(500).json({
-        error:
-          error.message ||
-          'Impossibile avviare il pagamento.'
-      });
+      return res.status(500).send(
+        "Webhook processing failed"
+      );
 
     }
 
@@ -1397,68 +2020,61 @@ app.post(
 );
 
 
-/* =========================================================
-   HEALTH CHECK
-========================================================= */
+/* =====================================================
+   EXPRESS JSON
+=====================================================
 
-app.get(
-  '/health',
-  (req, res) => {
+   DEVE ESSERE DOPO IL WEBHOOK.
+===================================================== */
 
-    return res.json({
-
-      ok: true,
-
-      stripe:
-        Boolean(
-          stripeKey
-        ),
-
-      telegram:
-        Boolean(
-          telegramBotToken &&
-          telegramChatId
-        ),
-
-      webhook:
-        Boolean(
-          stripeWebhookSecret
-        )
-
-    });
-
-  }
+app.use(
+  express.json()
 );
 
 
-/* =========================================================
-   API NON TROVATA
-========================================================= */
+/* =====================================================
+   FILE STATICI
+===================================================== */
 
 app.use(
-  '/api',
-  (req, res) => {
-
-    return res.status(404).json({
-      error:
-        'Endpoint non trovato.'
-    });
-
-  }
+  express.static(
+    __dirname,
+    {
+      extensions: [
+        "html"
+      ]
+    }
+  )
 );
 
 
-/* =========================================================
-   PAGINA PRINCIPALE
-========================================================= */
+/* =====================================================
+   FALLBACK PAGINE
+===================================================== */
 
 app.use(
   (req, res) => {
+
+    if (
+      req.path.startsWith(
+        "/api/"
+      )
+    ) {
+
+      return res
+        .status(404)
+        .json({
+          error:
+            "Endpoint non trovato"
+        });
+
+    }
+
 
     return res.sendFile(
       path.join(
         __dirname,
-        'index.html'
+        "index.html"
       )
     );
 
@@ -1466,49 +2082,68 @@ app.use(
 );
 
 
-/* =========================================================
+/* =====================================================
    AVVIO
-========================================================= */
+===================================================== */
 
-ensureStockFile();
-
-async function ensureStockFile() {
-
-  try {
-
-    await readStock();
-
-  } catch (error) {
-
-    console.error(
-      'Errore inizializzazione stock:',
-      error
-    );
-
+await fs.mkdir(
+  path.dirname(STOCK_FILE),
+  {
+    recursive: true
   }
+);
 
-}
+
+await fs.mkdir(
+  path.dirname(ORDERS_FILE),
+  {
+    recursive: true
+  }
+);
+
+
+await readStock();
+
+
+console.log(
+  "=========================================="
+);
+
+console.log(
+  "C1BLOCK X JEDI"
+);
+
+console.log(
+  `Porta: ${PORT}`
+);
+
+console.log(
+  "=========================================="
+);
 
 
 app.listen(
   PORT,
-  '0.0.0.0',
+  "0.0.0.0",
   () => {
-
-    console.log(
-      '======================================'
-    );
 
     console.log(
       `C1BLOCK X JEDI avviato sulla porta ${PORT}`
     );
 
     console.log(
-      `Porta: ${PORT}`
+      "Stock:",
+      STOCK_FILE
     );
 
     console.log(
-      '======================================'
+      "Webhook:",
+      "/api/stripe-webhook"
+    );
+
+    console.log(
+      "Checkout:",
+      "/api/create-checkout"
     );
 
   }
