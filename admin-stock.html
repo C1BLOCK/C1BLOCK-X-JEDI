@@ -1,10 +1,11 @@
 <!doctype html>
 <html lang="it">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>Stock - C1BLOCK X JEDI</title>
+  <title>Gestione Stock - C1BLOCK X JEDI</title>
 
   <style>
     * {
@@ -81,7 +82,12 @@
     }
 
     button:hover {
-      opacity: .85;
+      opacity: 0.85;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .hidden {
@@ -105,6 +111,10 @@
       margin-top: 15px;
     }
 
+    .stock-zero {
+      border-color: #ff6b6b;
+    }
+
     @media (max-width: 600px) {
       .grid {
         grid-template-columns: repeat(2, 1fr);
@@ -124,7 +134,9 @@
   </p>
 
 
-  <!-- LOGIN -->
+  <!-- =========================
+       LOGIN
+  ========================== -->
 
   <div id="loginBox" class="card">
 
@@ -146,11 +158,15 @@
   </div>
 
 
-  <!-- PANNELLO STOCK -->
+  <!-- =========================
+       PANNELLO STOCK
+  ========================== -->
 
   <div id="panel" class="hidden">
 
-    <!-- 30 EURO -->
+    <!-- =========================
+         MAGLIA 30€
+    ========================== -->
 
     <div class="card">
 
@@ -160,27 +176,57 @@
 
         <div>
           <label>S</label>
-          <input id="30-S" type="number" min="0" step="1">
+          <input
+            id="30-S"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
         <div>
           <label>M</label>
-          <input id="30-M" type="number" min="0" step="1">
+          <input
+            id="30-M"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
         <div>
           <label>L</label>
-          <input id="30-L" type="number" min="0" step="1">
+          <input
+            id="30-L"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
         <div>
           <label>XL</label>
-          <input id="30-XL" type="number" min="0" step="1">
+          <input
+            id="30-XL"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
         <div>
           <label>XXL</label>
-          <input id="30-XXL" type="number" min="0" step="1">
+          <input
+            id="30-XXL"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
       </div>
@@ -188,7 +234,9 @@
     </div>
 
 
-    <!-- 50 EURO -->
+    <!-- =========================
+         MAGLIA 50€
+    ========================== -->
 
     <div class="card">
 
@@ -198,27 +246,57 @@
 
         <div>
           <label>S</label>
-          <input id="50-S" type="number" min="0" step="1">
+          <input
+            id="50-S"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
         <div>
           <label>M</label>
-          <input id="50-M" type="number" min="0" step="1">
+          <input
+            id="50-M"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
         <div>
           <label>L</label>
-          <input id="50-L" type="number" min="0" step="1">
+          <input
+            id="50-L"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
         <div>
           <label>XL</label>
-          <input id="50-XL" type="number" min="0" step="1">
+          <input
+            id="50-XL"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
         <div>
           <label>XXL</label>
-          <input id="50-XXL" type="number" min="0" step="1">
+          <input
+            id="50-XXL"
+            type="number"
+            min="0"
+            max="10000"
+            step="1"
+          >
         </div>
 
       </div>
@@ -238,9 +316,28 @@
 
 <script>
 
-const versions = ["30", "50"];
+const RAILWAY_URL =
+  "https://c1block-x-jedi-production-83ad.up.railway.app";
 
-const sizes = ["S", "M", "L", "XL", "XXL"];
+
+const ADMIN_STOCK_URL =
+  `${RAILWAY_URL}/api/admin/stock`;
+
+
+const versions = [
+  "30",
+  "50"
+];
+
+
+const sizes = [
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL"
+];
+
 
 let adminPassword = "";
 
@@ -252,6 +349,7 @@ let adminPassword = "";
 function emptyStock() {
 
   return {
+
     "30": {
       S: 0,
       M: 0,
@@ -267,6 +365,7 @@ function emptyStock() {
       XL: 0,
       XXL: 0
     }
+
   };
 
 }
@@ -278,11 +377,19 @@ function emptyStock() {
 
 function normalizeStock(data) {
 
-  const stock = emptyStock();
+  const stock =
+    emptyStock();
 
-  if (!data || typeof data !== "object") {
+
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
+
     return stock;
+
   }
+
 
   const source =
     data.stock &&
@@ -291,35 +398,46 @@ function normalizeStock(data) {
       : data;
 
 
-  for (const version of versions) {
+  for (
+    const version of versions
+  ) {
 
     if (
       !source[version] ||
       typeof source[version] !== "object"
     ) {
+
       continue;
+
     }
 
 
-    for (const size of sizes) {
+    for (
+      const size of sizes
+    ) {
 
       const value =
-        Number(source[version][size]);
+        Number(
+          source[version][size]
+        );
 
 
       if (
         Number.isFinite(value) &&
-        value >= 0
+        Number.isInteger(value) &&
+        value >= 0 &&
+        value <= 10000
       ) {
 
         stock[version][size] =
-          Math.floor(value);
+          value;
 
       }
 
     }
 
   }
+
 
   return stock;
 
@@ -332,23 +450,62 @@ function normalizeStock(data) {
 
 function showStock(stock) {
 
-  for (const version of versions) {
+  for (
+    const version of versions
+  ) {
 
-    for (const size of sizes) {
+    for (
+      const size of sizes
+    ) {
 
       const input =
         document.getElementById(
           `${version}-${size}`
         );
 
+
       if (!input) {
         continue;
       }
 
+
       input.value =
         stock[version][size];
 
+
+      updateInputStyle(input);
+
     }
+
+  }
+
+}
+
+
+/* =========================
+   COLORE INPUT A ZERO
+========================= */
+
+function updateInputStyle(input) {
+
+  const value =
+    Number(input.value);
+
+
+  if (
+    Number.isInteger(value) &&
+    value === 0
+  ) {
+
+    input.classList.add(
+      "stock-zero"
+    );
+
+  } else {
+
+    input.classList.remove(
+      "stock-zero"
+    );
 
   }
 
@@ -362,10 +519,16 @@ function showStock(stock) {
 async function login() {
 
   const passwordInput =
-    document.getElementById("password");
+    document.getElementById(
+      "password"
+    );
+
 
   const loginMessage =
-    document.getElementById("loginMessage");
+    document.getElementById(
+      "loginMessage"
+    );
+
 
   const password =
     passwordInput.value.trim();
@@ -395,13 +558,18 @@ async function login() {
 
     const response =
       await fetch(
-        "/api/admin/stock",
+        ADMIN_STOCK_URL,
         {
           method: "GET",
+
           cache: "no-store",
+
           headers: {
-            "x-admin-password": password,
-            "Cache-Control": "no-cache"
+            "x-admin-key":
+              password,
+
+            "Cache-Control":
+              "no-cache"
           }
         }
       );
@@ -410,7 +578,9 @@ async function login() {
     const data =
       await response
         .json()
-        .catch(() => ({}));
+        .catch(
+          () => ({})
+        );
 
 
     if (!response.ok) {
@@ -435,22 +605,38 @@ async function login() {
 
 
     document
-      .getElementById("loginBox")
-      .classList.add("hidden");
+      .getElementById(
+        "loginBox"
+      )
+      .classList.add(
+        "hidden"
+      );
 
 
     document
-      .getElementById("panel")
-      .classList.remove("hidden");
+      .getElementById(
+        "panel"
+      )
+      .classList.remove(
+        "hidden"
+      );
 
+
+    loginMessage.textContent =
+      "";
 
   } catch (error) {
 
-    console.error(error);
+    console.error(
+      "Errore login:",
+      error
+    );
+
 
     loginMessage.textContent =
       error.message ||
       "Errore durante l'accesso.";
+
 
     loginMessage.className =
       "error";
@@ -470,9 +656,13 @@ function getStockFromPage() {
     emptyStock();
 
 
-  for (const version of versions) {
+  for (
+    const version of versions
+  ) {
 
-    for (const size of sizes) {
+    for (
+      const size of sizes
+    ) {
 
       const input =
         document.getElementById(
@@ -485,19 +675,21 @@ function getStockFromPage() {
       }
 
 
-      let value =
-        Number.parseInt(
-          input.value,
-          10
+      const value =
+        Number(
+          input.value
         );
 
 
       if (
-        !Number.isFinite(value) ||
-        value < 0
+        !Number.isInteger(value) ||
+        value < 0 ||
+        value > 10000
       ) {
 
-        value = 0;
+        throw new Error(
+          `Valore non valido: ${version}-${size}`
+        );
 
       }
 
@@ -508,6 +700,7 @@ function getStockFromPage() {
     }
 
   }
+
 
   return stock;
 
@@ -521,11 +714,36 @@ function getStockFromPage() {
 async function saveStock() {
 
   const message =
-    document.getElementById("message");
+    document.getElementById(
+      "message"
+    );
 
 
-  const stock =
-    getStockFromPage();
+  const saveButton =
+    document.getElementById(
+      "saveButton"
+    );
+
+
+  let stock;
+
+
+  try {
+
+    stock =
+      getStockFromPage();
+
+  } catch (error) {
+
+    message.textContent =
+      error.message;
+
+    message.className =
+      "error";
+
+    return;
+
+  }
 
 
   message.textContent =
@@ -535,29 +753,38 @@ async function saveStock() {
     "info";
 
 
+  saveButton.disabled =
+    true;
+
+
   try {
 
     const response =
       await fetch(
-        "/api/admin/stock",
+        ADMIN_STOCK_URL,
         {
           method: "PUT",
 
           cache: "no-store",
 
           headers: {
+
             "Content-Type":
               "application/json",
 
-            "x-admin-password":
+            "x-admin-key":
               adminPassword,
 
             "Cache-Control":
               "no-cache"
+
           },
 
           body:
-            JSON.stringify(stock)
+            JSON.stringify({
+              stock: stock
+            })
+
         }
       );
 
@@ -565,7 +792,9 @@ async function saveStock() {
     const data =
       await response
         .json()
-        .catch(() => ({}));
+        .catch(
+          () => ({})
+        );
 
 
     if (!response.ok) {
@@ -578,6 +807,15 @@ async function saveStock() {
     }
 
 
+    const savedStock =
+      normalizeStock(data);
+
+
+    showStock(
+      savedStock
+    );
+
+
     message.textContent =
       "✓ Stock aggiornato correttamente.";
 
@@ -587,7 +825,11 @@ async function saveStock() {
 
   } catch (error) {
 
-    console.error(error);
+    console.error(
+      "Errore salvataggio:",
+      error
+    );
+
 
     message.textContent =
       error.message ||
@@ -595,6 +837,12 @@ async function saveStock() {
 
     message.className =
       "error";
+
+
+  } finally {
+
+    saveButton.disabled =
+      false;
 
   }
 
@@ -606,7 +854,9 @@ async function saveStock() {
 ========================= */
 
 document
-  .getElementById("loginButton")
+  .getElementById(
+    "loginButton"
+  )
   .addEventListener(
     "click",
     login
@@ -614,7 +864,9 @@ document
 
 
 document
-  .getElementById("saveButton")
+  .getElementById(
+    "saveButton"
+  )
   .addEventListener(
     "click",
     saveStock
@@ -622,17 +874,57 @@ document
 
 
 document
-  .getElementById("password")
+  .getElementById(
+    "password"
+  )
   .addEventListener(
     "keydown",
     function(event) {
 
-      if (event.key === "Enter") {
+      if (
+        event.key === "Enter"
+      ) {
+
         login();
+
       }
 
     }
   );
+
+
+for (
+  const version of versions
+) {
+
+  for (
+    const size of sizes
+  ) {
+
+    const input =
+      document.getElementById(
+        `${version}-${size}`
+      );
+
+
+    if (input) {
+
+      input.addEventListener(
+        "input",
+        function() {
+
+          updateInputStyle(
+            this
+          );
+
+        }
+      );
+
+    }
+
+  }
+
+}
 
 </script>
 
