@@ -972,7 +972,13 @@ async function processPaidSession(
       version
     );
 
-
+console.log("DEBUG TELEGRAM:", {
+  size,
+  quantity,
+  version,
+  versionName,
+  metadata: session.metadata
+});
   const telegramMessage =
 `💳 PAGAMENTO RICEVUTO — C1BLOCK X JEDI
 
