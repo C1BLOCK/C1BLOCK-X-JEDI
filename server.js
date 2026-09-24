@@ -834,14 +834,28 @@ async function processPaidSession(
     cleanText(metadata.citta);
 
   const size =
-    cleanText(metadata.size)
-      .toUpperCase();
+  cleanText(
+    metadata.size ||
+    metadata.taglia
+  ).toUpperCase();
 
-  const version =
-    cleanText(metadata.version);
+      const version =
+     cleanText(
+     metadata.version ||
+     metadata.versione_codice ||
+     (
+         metadata.versione
+         ? getVersionCode(metadata.versione)
+         : ""
+      )
+       );
 
-  const quantity =
-    Number(metadata.quantity);
+          const quantity =
+        Number(
+         metadata.quantity ||
+        metadata.quantita ||
+         1
+         );
 
   const note =
     cleanText(metadata.note);
