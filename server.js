@@ -1,4 +1,4 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 import express from "express";
 import Stripe from "stripe";
 import fs from "fs";
@@ -289,7 +289,7 @@ const orders =
   Tutte le operazioni che modificano
   lo stock passano da questa coda.
   In questo modo due checkout simultanei
-  non possono prenotare la stessa unità.
+  non possono prenotare la stessa unitÃ .
 */
 let stockOperation =
   Promise.resolve();
@@ -598,10 +598,10 @@ function cleanText(value) {
 function getVersionName(version) {
 
   if (version === "50") {
-    return "Maglia con firma di Jedi - 50€";
+    return "Maglia con firma di Jedi - 50â‚¬";
   }
 
-  return "Maglia - 30€";
+  return "Maglia - 30â‚¬";
 }
 
 
@@ -877,8 +877,8 @@ async function processPaidSession(
 
 
   /*
-    Lo stock è già stato sottratto
-    quando è stata creata la Checkout Session.
+    Lo stock Ã¨ giÃ  stato sottratto
+    quando Ã¨ stata creata la Checkout Session.
     Qui trasformiamo semplicemente
     la prenotazione in "paid".
   */
@@ -913,7 +913,7 @@ async function processPaidSession(
         ) {
 
           console.error(
-            "Pagamento ricevuto per una prenotazione già scaduta:",
+            "Pagamento ricevuto per una prenotazione giÃ  scaduta:",
             session.id
           );
 
@@ -980,57 +980,52 @@ console.log("DEBUG TELEGRAM:", {
   metadata: session.metadata
 });
   const telegramMessage =
-`💳 PAGAMENTO RICEVUTO — C1BLOCK X JEDI
+`ðŸ’³ PAGAMENTO RICEVUTO â€” C1BLOCK X JEDI
 
-👤 ${nome} ${cognome}
-📞 ${telefono}
-📧 ${email}
+ðŸ‘¤ ${nome} ${cognome}
+ðŸ“ž ${telefono}
+ðŸ“§ ${email}
 
-📍 ${indirizzo}
+ðŸ“ ${indirizzo}
 ${cap} ${citta}
 
-👕 Taglia: ${size}
-🔢 Quantità: ${quantity}
-💰 Versione: ${versionName}
-💶 Totale: €${totalAmount}
+ðŸ‘• Taglia: ${size}
+ðŸ”¢ QuantitÃ : ${quantity}
+ðŸ’° Versione: ${versionName}
+ðŸ’¶ Totale: â‚¬${totalAmount}
 
-🆔 Stripe: ${session.id}
+ðŸ†” Stripe: ${session.id}
 
-📝 Note: ${note || "-"}`;
+ðŸ“ Note: ${note || "-"}`;
 
 
   /*
     Evita notifiche Telegram duplicate
     se Stripe reinvia lo stesso webhook.
   */
-  if (
-    reservation.telegramSent
-  ) {
-    return;
-  }
-
-
-  await sendTelegramMessage(
-    telegramMessage
-  );
-
-
   await withStockLock(
     async () => {
 
+      const currentReservation =
+        reservations[
+          reservationResult.id
+        ];
+
       if (
-        reservations[
-          reservationResult.id
-        ]
+        !currentReservation ||
+        currentReservation.telegramSent
       ) {
-
-        reservations[
-          reservationResult.id
-        ].telegramSent =
-          true;
-
-        saveState();
+        return;
       }
+
+      await sendTelegramMessage(
+        telegramMessage
+      );
+
+      currentReservation.telegramSent =
+        true;
+
+      saveState();
     }
   );
 
@@ -1091,8 +1086,8 @@ app.get(
     );
 
     /*
-      Il pubblico può vedere
-      solo la disponibilità,
+      Il pubblico puÃ² vedere
+      solo la disponibilitÃ ,
       non altre informazioni.
     */
 
@@ -1221,7 +1216,7 @@ app.all(
 
           "10"
 
-          Quindi non dà più
+          Quindi non dÃ  piÃ¹
           "Valore non valido: 30 - S"
           quando il browser manda
           il valore come stringa.
@@ -1245,7 +1240,7 @@ app.all(
             res,
             {
               error:
-                `Valore non valido: ${version}€ - ${size}`
+                `Valore non valido: ${version}â‚¬ - ${size}`
             },
             400
           );
@@ -1445,7 +1440,7 @@ app.post(
           res,
           {
             error:
-              "Quantità non valida."
+              "QuantitÃ  non valida."
           },
           400
         );
@@ -1473,7 +1468,7 @@ app.post(
           res,
           {
             error:
-              `La taglia ${size} della versione ${version}€ è esaurita.`
+              `La taglia ${size} della versione ${version}â‚¬ Ã¨ esaurita.`
           },
           400
         );
@@ -1489,7 +1484,7 @@ app.post(
           res,
           {
             error:
-              `Disponibilità massima: ${available}`
+              `DisponibilitÃ  massima: ${available}`
           },
           400
         );
@@ -1517,7 +1512,7 @@ app.post(
         Prenotazione atomica:
 
         1. ricontrolla lo stock
-        2. sottrae immediatamente la quantità
+        2. sottrae immediatamente la quantitÃ 
         3. salva la prenotazione su disco
         4. crea il Checkout Stripe
         5. associa la sessione alla prenotazione
@@ -1543,7 +1538,7 @@ app.post(
               ) {
 
                 throw new Error(
-                  `La taglia ${size} della versione ${version}€ è esaurita.`
+                  `La taglia ${size} della versione ${version}â‚¬ Ã¨ esaurita.`
                 );
               }
 
@@ -1553,7 +1548,7 @@ app.post(
               ) {
 
                 throw new Error(
-                  `Disponibilità massima: ${currentAvailable}`
+                  `DisponibilitÃ  massima: ${currentAvailable}`
                 );
               }
 
@@ -1697,7 +1692,7 @@ app.post(
                 /*
                   Stripe non ha creato il checkout:
                   restituiamo immediatamente
-                  la quantità prenotata.
+                  la quantitÃ  prenotata.
                 */
                 stock[version][size] +=
                   quantity;
@@ -1720,7 +1715,7 @@ app.post(
             "esaurita"
           ) ||
           error?.message?.includes(
-            "Disponibilità massima"
+            "DisponibilitÃ  massima"
           )
         ) {
 
