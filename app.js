@@ -523,10 +523,11 @@ if (sizeSelect) {
       }
 
 
-      const available =
-        Number(
-          stock?.[version]?.[size] || 0
-        );
+        const available = Number(stock?.[version]?.[size] || 0);
+
+         if (available <= 0) {
+        throw new Error("Questa taglia è SOLD OUT.");
+         } 
 
 
       if (available <= 0) {
@@ -698,21 +699,22 @@ if (form) {
       }
 
 
-      const available =
-        Number(
-          stock?.[version]?.[size] || 0
-        );
+        const available = Number(stock?.[version]?.[size] || 0);
+
+         if (available <= 0) {
+         throw new Error("Questa taglia è SOLD OUT.");
+        }
 
 
-      if (available <= 0) {
+        if (available <= 0) {
 
-        if (errorBox) {
+         if (errorBox) {
 
-          errorBox.textContent =
-            "La taglia selezionata è esaurita.";
+        errorBox.textContent =
+          "La taglia selezionata è esaurita.";
 
-          errorBox.style.display =
-            "block";
+        errorBox.style.display =
+          "block";
 
         }
 

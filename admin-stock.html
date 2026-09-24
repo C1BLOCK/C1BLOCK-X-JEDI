@@ -316,9 +316,7 @@
 
 <script>
 
-const RAILWAY_URL =
-  "https://c1block-x-jedi-production-83ad.up.railway.app";
-
+const RAILWAY_URL = "https://c1block-x-jedi-production.up.railway.app";
 
 const ADMIN_STOCK_URL =
   `${RAILWAY_URL}/api/admin/stock`;
@@ -565,7 +563,7 @@ async function login() {
           cache: "no-store",
 
           headers: {
-            "x-admin-key":
+            "x-admin-password":
               password,
 
             "Cache-Control":
@@ -634,8 +632,12 @@ async function login() {
 
 
     loginMessage.textContent =
-      error.message ||
-      "Errore durante l'accesso.";
+      error instanceof TypeError && error.message === "Failed to fetch"
+        ? "Impossibile raggiungere il server. Controlla il collegamento Railway."
+        : (
+            error.message ||
+            "Errore durante l'accesso."
+          );
 
 
     loginMessage.className =
@@ -763,7 +765,7 @@ async function saveStock() {
       await fetch(
         ADMIN_STOCK_URL,
         {
-          method: "PUT",
+          method: "POST",
 
           cache: "no-store",
 
@@ -772,7 +774,7 @@ async function saveStock() {
             "Content-Type":
               "application/json",
 
-            "x-admin-key":
+            "x-admin-password":
               adminPassword,
 
             "Cache-Control":
@@ -832,8 +834,12 @@ async function saveStock() {
 
 
     message.textContent =
-      error.message ||
-      "Errore durante il salvataggio.";
+      error instanceof TypeError && error.message === "Failed to fetch"
+        ? "Impossibile raggiungere il server. Controlla il collegamento Railway."
+        : (
+            error.message ||
+            "Errore durante il salvataggio."
+          );
 
     message.className =
       "error";

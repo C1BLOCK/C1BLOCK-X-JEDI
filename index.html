@@ -896,7 +896,7 @@ async function loadStock() {
 
     const response =
       await fetch(
-        'https://c1block-x-jedi-production-83ad.up.railway.app/api/stock',
+        'https://c1block-x-jedi-production.up.railway.app/api/stock',
         {
           method: 'GET',
 
@@ -919,8 +919,13 @@ async function loadStock() {
     }
 
 
-    const stock =
+    const stockPayload =
       await response.json();
+
+    const stock =
+      stockPayload?.stock && typeof stockPayload.stock === 'object'
+        ? stockPayload.stock
+        : stockPayload;
 
 
     console.log(
@@ -1040,7 +1045,7 @@ async function checkStockBeforePayment() {
 
   const response =
     await fetch(
-      'https://c1block-x-jedi-production-83ad.up.railway.app/api/stock',
+      'https://c1block-x-jedi-production.up.railway.app/api/stock',
       {
         cache: 'no-store'
       }
@@ -1056,22 +1061,31 @@ async function checkStockBeforePayment() {
   }
 
 
-  const stock =
+  const stockPayload =
     await response.json();
+
+  const stock =
+    stockPayload?.stock && typeof stockPayload.stock === 'object'
+      ? stockPayload.stock
+      : stockPayload;
 
 
   const available =
-    isAvailableValue(
-      stock?.[version]?.[size]
-    );
+    Number(stock?.[version]?.[size]);
 
 
-  if (!available) {
+  if (!Number.isFinite(available) || available <= 0) {
 
     throw new Error(
       'Questa taglia è esaurita.'
     );
 
+  }
+
+  if (quantity > available) {
+    throw new Error(
+      `Disponibilità massima: ${available}.`
+    );
   }
 
 
@@ -1176,13 +1190,13 @@ form.addEventListener(
             'citta'
           ),
 
-        version:
+        versione:
           versionSelect.value,
 
-        size:
+        taglia:
           sizeSelect.value,
 
-        quantity:
+        quantita:
           String(
             quantityInput.value
           ),
@@ -1203,7 +1217,7 @@ form.addEventListener(
 
       const response =
         await fetch(
-          '/api/create-checkout',
+          'https://c1block-x-jedi-production.up.railway.app/api/create-checkout',
           {
 
             method:

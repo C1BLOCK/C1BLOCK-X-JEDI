@@ -9,7 +9,7 @@
     },
     "50": {
       "S": 15,
-      "M": 17,
+      "M": 18,
       "L": 15,
       "XL": 5,
       "XXL": 3
@@ -22,7 +22,8 @@
       "size": "M",
       "quantity": 1,
       "expiresAt": 1790009605,
-      "status": "reserved"
+      "status": "expired",
+      "expiredAt": 1790253326
     }
   },
   "orders": {}

@@ -1,6 +1,8 @@
+import "dotenv/config";
 import express from "express";
 import Stripe from "stripe";
 import fs from "fs";
+import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -18,6 +20,12 @@ const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
 const telegramChatId = process.env.TELEGRAM_CHAT_ID;
 
 const adminPassword = process.env.ADMIN_PASSWORD;
+const corsOrigins = new Set(
+  (process.env.CORS_ORIGINS || process.env.FRONTEND_ORIGIN || process.env.SITE_URL || "")
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean)
+);
 
 const stripe = stripeSecretKey
   ? new Stripe(stripeSecretKey)
@@ -38,40 +46,55 @@ const prices = {
 
 
 /* =========================================================
-   STOCK
+   STOCK + PRENOTAZIONI PERSISTENTI
 ========================================================= */
 
-const stockFile = path.join(__dirname, "stock.json");
+const DATA_DIR =
+  process.env.STOCK_DATA_DIR ||
+  path.join(__dirname, "data");
+
+const stockFile =
+  path.join(DATA_DIR, "stock.json");
+
+const RESERVATION_MINUTES = 30;
+const RESERVATION_SECONDS =
+  RESERVATION_MINUTES * 60;
 
 const defaultStock = {
   "30": {
-    S: 0,
-    M: 0,
-    L: 0,
-    XL: 0,
-    XXL: 0
+    S: 15,
+    M: 20,
+    L: 15,
+    XL: 5,
+    XXL: 3
   },
 
   "50": {
-    S: 0,
-    M: 0,
-    L: 0,
-    XL: 0,
-    XXL: 0
+    S: 15,
+    M: 20,
+    L: 15,
+    XL: 5,
+    XXL: 3
   }
 };
 
 
 function cloneDefaultStock() {
-  return JSON.parse(JSON.stringify(defaultStock));
+  return JSON.parse(
+    JSON.stringify(defaultStock)
+  );
 }
 
 
 function normalizeStock(data) {
 
-  const result = cloneDefaultStock();
+  const result =
+    cloneDefaultStock();
 
-  if (!data || typeof data !== "object") {
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
     return result;
   }
 
@@ -81,7 +104,9 @@ function normalizeStock(data) {
       ? data.stock
       : data;
 
-  for (const version of VERSIONS) {
+  for (
+    const version of VERSIONS
+  ) {
 
     if (
       !source[version] ||
@@ -90,17 +115,21 @@ function normalizeStock(data) {
       continue;
     }
 
-    for (const size of SIZES) {
+    for (
+      const size of SIZES
+    ) {
 
-      const value = Number(
-        source[version][size]
-      );
+      const value =
+        Number(
+          source[version][size]
+        );
 
       if (
         Number.isInteger(value) &&
         value >= 0
       ) {
-        result[version][size] = value;
+        result[version][size] =
+          value;
       }
 
     }
@@ -110,22 +139,57 @@ function normalizeStock(data) {
 }
 
 
-function loadStock() {
+function normalizeReservations(data) {
+
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
+    return {};
+  }
+
+  const source =
+    data.reservations &&
+    typeof data.reservations === "object"
+      ? data.reservations
+      : {};
+
+  return source;
+}
+
+
+function loadState() {
+
+  fs.mkdirSync(
+    DATA_DIR,
+    {
+      recursive: true
+    }
+  );
 
   try {
 
-    if (!fs.existsSync(stockFile)) {
+    if (
+      !fs.existsSync(stockFile)
+    ) {
+
+      const initialState = {
+        stock:
+          cloneDefaultStock(),
+        reservations: {},
+        orders: {}
+      };
 
       fs.writeFileSync(
         stockFile,
         JSON.stringify(
-          defaultStock,
+          initialState,
           null,
           2
         )
       );
 
-      return cloneDefaultStock();
+      return initialState;
     }
 
     const data =
@@ -136,7 +200,19 @@ function loadStock() {
         )
       );
 
-    return normalizeStock(data);
+    return {
+      stock:
+        normalizeStock(data),
+
+      reservations:
+        normalizeReservations(data),
+
+      orders:
+        data.orders &&
+        typeof data.orders === "object"
+          ? data.orders
+          : {}
+    };
 
   } catch (error) {
 
@@ -145,30 +221,333 @@ function loadStock() {
       error
     );
 
-    return cloneDefaultStock();
+    return {
+      stock:
+        cloneDefaultStock(),
+      reservations: {},
+      orders: {}
+    };
   }
 }
 
 
-function saveStock(newStock) {
+function saveState() {
 
-  const cleanStock =
-    normalizeStock(newStock);
+  fs.mkdirSync(
+    DATA_DIR,
+    {
+      recursive: true
+    }
+  );
+
+  const state = {
+    stock:
+      normalizeStock(stock),
+
+    reservations:
+      reservations,
+
+    orders:
+      orders
+  };
+
+  const tempFile =
+    `${stockFile}.tmp`;
 
   fs.writeFileSync(
-    stockFile,
+    tempFile,
     JSON.stringify(
-      cleanStock,
+      state,
       null,
       2
     )
   );
 
-  return cleanStock;
+  fs.renameSync(
+    tempFile,
+    stockFile
+  );
+
+  return stock;
 }
 
 
-let stock = loadStock();
+const initialState =
+  loadState();
+
+let stock =
+  initialState.stock;
+
+const reservations =
+  initialState.reservations;
+
+const orders =
+  initialState.orders;
+
+
+/*
+  Tutte le operazioni che modificano
+  lo stock passano da questa coda.
+  In questo modo due checkout simultanei
+  non possono prenotare la stessa unità.
+*/
+let stockOperation =
+  Promise.resolve();
+
+function withStockLock(operation) {
+
+  const next =
+    stockOperation.then(
+      operation,
+      operation
+    );
+
+  stockOperation =
+    next.catch(
+      () => {}
+    );
+
+  return next;
+}
+
+
+function saveStock(newStock) {
+
+  stock =
+    normalizeStock(
+      newStock
+    );
+
+  saveState();
+
+  return stock;
+}
+
+
+function cleanupExpiredReservations() {
+
+  const now =
+    Math.floor(
+      Date.now() / 1000
+    );
+
+  let changed =
+    false;
+
+  for (
+    const [id, reservation]
+      of Object.entries(
+        reservations
+      )
+  ) {
+
+    if (
+      !reservation ||
+      !["reserved", "pending"].includes(reservation.status)
+    ) {
+      continue;
+    }
+
+    if (
+      Number(
+        reservation.expiresAt
+      ) > now
+    ) {
+      continue;
+    }
+
+    const version =
+      reservation.version;
+
+    const size =
+      reservation.size;
+
+    const quantity =
+      Number(
+        reservation.quantity
+      );
+
+    if (
+      VERSIONS.includes(version) &&
+      SIZES.includes(size) &&
+      Number.isInteger(quantity) &&
+      quantity > 0
+    ) {
+
+      stock[version][size] +=
+        quantity;
+
+    }
+
+    reservation.status =
+      "expired";
+
+    reservation.expiredAt =
+      now;
+
+    changed =
+      true;
+
+    console.log(
+      "Prenotazione scaduta:",
+      id
+    );
+  }
+
+  if (changed) {
+    saveState();
+  }
+
+  return changed;
+}
+
+
+function releaseReservation(
+  reservationId,
+  status = "expired"
+) {
+
+  const reservation =
+    reservations[reservationId];
+
+  if (
+    !reservation ||
+    !["reserved", "pending"].includes(reservation.status)
+  ) {
+    return false;
+  }
+
+  const version =
+    reservation.version;
+
+  const size =
+    reservation.size;
+
+  const quantity =
+    Number(
+      reservation.quantity
+    );
+
+  if (
+    VERSIONS.includes(version) &&
+    SIZES.includes(size) &&
+    Number.isInteger(quantity) &&
+    quantity > 0
+  ) {
+
+    stock[version][size] +=
+      quantity;
+  }
+
+  reservation.status =
+    status;
+
+  reservation.releasedAt =
+    Math.floor(
+      Date.now() / 1000
+    );
+
+  saveState();
+
+  return true;
+}
+
+
+function findReservation(session) {
+
+  const reservationId =
+    cleanText(
+      session?.metadata?.reservation_id
+    );
+
+  if (
+    reservationId &&
+    reservations[reservationId]
+  ) {
+    return {
+      id: reservationId,
+      reservation:
+        reservations[reservationId]
+    };
+  }
+
+  for (
+    const [id, reservation]
+      of Object.entries(
+        reservations
+      )
+  ) {
+
+    if (
+      reservation?.sessionId ===
+      session?.id
+    ) {
+      return {
+        id,
+        reservation
+      };
+    }
+  }
+
+  return null;
+}
+
+
+cleanupExpiredReservations();
+
+const reservationCleanupTimer =
+  setInterval(
+    () => {
+      withStockLock(
+        async () => {
+          cleanupExpiredReservations();
+        }
+      ).catch((error) => {
+        console.error(
+          "Errore pulizia prenotazioni:",
+          error
+        );
+      });
+    },
+    60 * 1000
+  );
+
+reservationCleanupTimer.unref?.();
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  // The admin page is protected by x-admin-password.
+  // Reflect the requesting origin so the browser can perform the
+  // cross-origin GET/POST requests without requiring a Railway
+  // variable just for CORS. If an allowlist is configured, use it.
+  const allowed =
+    Boolean(origin) &&
+    (
+      corsOrigins.size === 0 ||
+      corsOrigins.has(origin)
+    );
+
+  if (allowed) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, OPTIONS"
+    );
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, x-admin-password, Cache-Control"
+    );
+    res.setHeader("Access-Control-Max-Age", "86400");
+    res.setHeader("Vary", "Origin");
+  }
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(allowed ? 204 : 403);
+  }
+
+  return next();
+});
 
 
 /* =========================================================
@@ -371,6 +750,33 @@ app.post(
 
       }
 
+      if (
+        event.type ===
+        "checkout.session.expired"
+      ) {
+
+        const session =
+          event.data.object;
+
+        await withStockLock(
+          async () => {
+            cleanupExpiredReservations();
+
+            const found =
+              findReservation(
+                session
+              );
+
+            if (found) {
+              releaseReservation(
+                found.id,
+                "expired"
+              );
+            }
+          }
+        );
+      }
+
       return res.json({
         received: true
       });
@@ -406,7 +812,6 @@ async function processPaidSession(
   const metadata =
     session.metadata || {};
 
-
   const nome =
     cleanText(metadata.nome);
 
@@ -441,7 +846,6 @@ async function processPaidSession(
   const note =
     cleanText(metadata.note);
 
-
   if (
     !VERSIONS.includes(version) ||
     !SIZES.includes(size) ||
@@ -459,107 +863,82 @@ async function processPaidSession(
 
 
   /*
-    Evita di sottrarre nuovamente
-    lo stock se Stripe invia
-    nuovamente lo stesso evento.
+    Lo stock è già stato sottratto
+    quando è stata creata la Checkout Session.
+    Qui trasformiamo semplicemente
+    la prenotazione in "paid".
   */
 
-  const paymentId =
-    session.id;
+  const reservationResult =
+    await withStockLock(
+      async () => {
 
-  const processedFile =
-    path.join(
-      __dirname,
-      "processed-payments.json"
+        cleanupExpiredReservations();
+
+        const found =
+          findReservation(
+            session
+          );
+
+        if (!found) {
+
+          console.error(
+            "Prenotazione Stripe non trovata:",
+            session.id
+          );
+
+          return null;
+        }
+
+        const reservation =
+          found.reservation;
+
+        if (
+          reservation.status ===
+          "expired"
+        ) {
+
+          console.error(
+            "Pagamento ricevuto per una prenotazione già scaduta:",
+            session.id
+          );
+
+          return null;
+        }
+
+        if (
+          reservation.status ===
+          "paid"
+        ) {
+
+          return found;
+        }
+
+        reservation.status =
+          "paid";
+
+        reservation.paidAt =
+          Math.floor(
+            Date.now() / 1000
+          );
+
+        reservation.sessionId =
+          session.id;
+
+        saveState();
+
+        return found;
+      }
     );
 
 
-  let processed = [];
-
-  try {
-
-    if (
-      fs.existsSync(
-        processedFile
-      )
-    ) {
-
-      processed =
-        JSON.parse(
-          fs.readFileSync(
-            processedFile,
-            "utf8"
-          )
-        );
-
-    }
-
-  } catch {
-    processed = [];
-  }
-
-
-  if (
-    processed.includes(
-      paymentId
-    )
-  ) {
-
-    console.log(
-      "Pagamento già elaborato:",
-      paymentId
-    );
-
+  if (!reservationResult) {
     return;
   }
 
 
-  const available =
-    Number(
-      stock?.[version]?.[size] || 0
-    );
-
-
-  if (
-    available < quantity
-  ) {
-
-    console.error(
-      `Stock insufficiente dopo pagamento: ${version}-${size}`
-    );
-
-    return;
-  }
-
-
-  stock[version][size] =
-    available - quantity;
-
-  saveStock(stock);
-
-
-  processed.push(paymentId);
-
-
-  try {
-
-    fs.writeFileSync(
-      processedFile,
-      JSON.stringify(
-        processed,
-        null,
-        2
-      )
-    );
-
-  } catch (error) {
-
-    console.error(
-      "Errore salvataggio pagamenti:",
-      error
-    );
-
-  }
+  const reservation =
+    reservationResult.reservation;
 
 
   const totalAmount =
@@ -600,8 +979,39 @@ ${cap} ${citta}
 📝 Note: ${note || "-"}`;
 
 
+  /*
+    Evita notifiche Telegram duplicate
+    se Stripe reinvia lo stesso webhook.
+  */
+  if (
+    reservation.telegramSent
+  ) {
+    return;
+  }
+
+
   await sendTelegramMessage(
     telegramMessage
+  );
+
+
+  await withStockLock(
+    async () => {
+
+      if (
+        reservations[
+          reservationResult.id
+        ]
+      ) {
+
+        reservations[
+          reservationResult.id
+        ].telegramSent =
+          true;
+
+        saveState();
+      }
+    }
   );
 
 
@@ -611,9 +1021,7 @@ ${cap} ${citta}
   );
 
   console.log(
-    "Stock aggiornato:",
-    version,
-    size,
+    "Stock disponibile:",
     stock[version][size]
   );
 }
@@ -655,6 +1063,8 @@ app.get(
   "/api/stock",
   (req, res) => {
 
+    cleanupExpiredReservations();
+
     res.set(
       "Cache-Control",
       "no-store, no-cache, must-revalidate, proxy-revalidate"
@@ -682,6 +1092,8 @@ app.get(
 app.get(
   "/api/admin/stock",
   (req, res) => {
+
+    cleanupExpiredReservations();
 
     if (!checkAdmin(req)) {
 
@@ -714,9 +1126,22 @@ app.get(
    SALVATAGGIO STOCK ADMIN
 ========================================================= */
 
-app.put(
+app.all(
   "/api/admin/stock",
   (req, res) => {
+
+    if (req.method !== "POST" && req.method !== "PUT") {
+
+      return sendJson(
+        res,
+        {
+          error:
+            "Metodo non consentito."
+        },
+        405
+      );
+
+    }
 
     if (!checkAdmin(req)) {
 
@@ -733,7 +1158,7 @@ app.put(
 
 
     const incoming =
-      req.body;
+      req.body?.stock || req.body;
 
 
     if (
@@ -911,7 +1336,8 @@ app.post(
 
       const version =
         cleanText(
-          body.version
+          body.version ||
+          body.versione
         );
 
 
@@ -1007,6 +1433,12 @@ app.post(
       }
 
 
+      await withStockLock(
+        async () => {
+          cleanupExpiredReservations();
+        }
+      );
+
       const available =
         Number(
           stock?.[version]?.[size] || 0
@@ -1049,81 +1481,241 @@ app.post(
         prices[version] * 100;
 
 
-      const session =
-        await stripe.checkout.sessions.create({
+      const reservationId =
+        crypto.randomUUID();
 
-          mode:
-            "payment",
-
-
-          payment_method_types: [
-            "card"
-          ],
+      const reservationExpiresAt =
+        Math.floor(
+          Date.now() / 1000
+        ) + RESERVATION_SECONDS;
 
 
-          customer_email:
-            email,
+      let session;
 
 
-          line_items: [
+      /*
+        Prenotazione atomica:
 
-            {
-              price_data: {
+        1. ricontrolla lo stock
+        2. sottrae immediatamente la quantità
+        3. salva la prenotazione su disco
+        4. crea il Checkout Stripe
+        5. associa la sessione alla prenotazione
 
-                currency:
-                  "eur",
+        Se Stripe fallisce, lo stock viene
+        restituito immediatamente.
+      */
+      try {
 
-                product_data: {
+        session =
+          await withStockLock(
+            async () => {
 
-                  name:
-                    getVersionName(
-                      version
-                    ),
+              cleanupExpiredReservations();
 
-                  description:
-                    `Taglia ${size} - C1BLOCK X JEDI`
+              const currentAvailable =
+                Number(
+                  stock?.[version]?.[size] || 0
+                );
 
-                },
+              if (
+                currentAvailable <= 0
+              ) {
 
-                unit_amount:
-                  unitAmount
+                throw new Error(
+                  `La taglia ${size} della versione ${version}€ è esaurita.`
+                );
+              }
 
-              },
+              if (
+                quantity >
+                currentAvailable
+              ) {
 
-              quantity:
-                quantity
+                throw new Error(
+                  `Disponibilità massima: ${currentAvailable}`
+                );
+              }
 
+
+              stock[version][size] =
+                currentAvailable -
+                quantity;
+
+
+              reservations[
+                reservationId
+              ] = {
+                id:
+                  reservationId,
+
+                version,
+                size,
+                quantity,
+
+                status:
+                  "pending",
+
+                createdAt:
+                  Math.floor(
+                    Date.now() / 1000
+                  ),
+
+                expiresAt:
+                  reservationExpiresAt,
+
+                sessionId:
+                  null,
+
+                telegramSent:
+                  false
+              };
+
+
+              saveState();
+
+
+              try {
+
+                const createdSession =
+                  await stripe.checkout.sessions.create({
+
+                    mode:
+                      "payment",
+
+                    payment_method_types: [
+                      "card"
+                    ],
+
+                    customer_email:
+                      email,
+
+                    line_items: [
+                      {
+                        price_data: {
+
+                          currency:
+                            "eur",
+
+                          product_data: {
+
+                            name:
+                              getVersionName(
+                                version
+                              ),
+
+                            description:
+                              `Taglia ${size} - C1BLOCK X JEDI`
+
+                          },
+
+                          unit_amount:
+                            unitAmount
+
+                        },
+
+                        quantity:
+                          quantity
+
+                      }
+                    ],
+
+                    metadata: {
+
+                      nome,
+                      cognome,
+                      telefono,
+                      email,
+                      indirizzo,
+                      cap,
+                      citta,
+                      size,
+                      version,
+                      quantity:
+                        String(
+                          quantity
+                        ),
+                      note,
+
+                      reservation_id:
+                        reservationId
+
+                    },
+
+                    client_reference_id:
+                      reservationId,
+
+                    expires_at:
+                      reservationExpiresAt,
+
+                    success_url:
+                      `${getBaseUrl(req)}/thank-you.html`,
+
+                    cancel_url:
+                      `${getBaseUrl(req)}/#ordine`
+
+                  });
+
+
+                reservations[
+                  reservationId
+                ].status =
+                  "reserved";
+
+                reservations[
+                  reservationId
+                ].sessionId =
+                  createdSession.id;
+
+                saveState();
+
+
+                return createdSession;
+
+              } catch (error) {
+
+                /*
+                  Stripe non ha creato il checkout:
+                  restituiamo immediatamente
+                  la quantità prenotata.
+                */
+                stock[version][size] +=
+                  quantity;
+
+                delete reservations[
+                  reservationId
+                ];
+
+                saveState();
+
+                throw error;
+              }
             }
+          );
 
-          ],
+      } catch (error) {
 
+        if (
+          error?.message?.includes(
+            "esaurita"
+          ) ||
+          error?.message?.includes(
+            "Disponibilità massima"
+          )
+        ) {
 
-          metadata: {
+          return sendJson(
+            res,
+            {
+              error:
+                error.message
+            },
+            400
+          );
+        }
 
-            nome,
-            cognome,
-            telefono,
-            email,
-            indirizzo,
-            cap,
-            citta,
-            size,
-            version,
-            quantity: String(
-              quantity
-            ),
-            note
-
-          },
-
-
-          success_url:
-            `${getBaseUrl(req)}/success.html`,
-
-          cancel_url:
-            `${getBaseUrl(req)}/#ordine`
-
-        });
+        throw error;
+      }
 
 
       return sendJson(

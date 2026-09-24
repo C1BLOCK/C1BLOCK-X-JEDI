@@ -78,15 +78,33 @@ Lo stock viene salvato automaticamente in:
 
 `data/stock.json`
 
-Lo stock iniziale è:
-
-30€: S 15, M 18, L 15, XL 5, XXL 3
-
-50€: S 15, M 18, L 15, XL 5, XXL 3
+Il file contiene anche le prenotazioni temporanee dei checkout.
 
 Il cliente vede solamente se una taglia è disponibile.
 
 La quantità numerica è visibile solo nell'area admin.
+
+### Prenotazione durante il checkout
+
+Quando il cliente apre il pagamento:
+
+1. lo stock viene prenotato immediatamente;
+2. la prenotazione dura 30 minuti;
+3. se il pagamento viene completato, la prenotazione diventa `paid`;
+4. se il checkout scade o Stripe segnala `checkout.session.expired`, lo stock viene restituito;
+5. se Stripe non riesce a creare il checkout, lo stock viene restituito subito.
+
+Questo evita che due clienti possano acquistare contemporaneamente la stessa ultima taglia.
+
+### Railway
+
+Su Railway crea un **Volume** e montalo su:
+
+`/app/data`
+
+Il server usa già `data/` come directory predefinita, quindi su Railway il volume montato su `/app/data` rende persistenti stock e prenotazioni anche dopo un redeploy.
+
+Non mettere `stock.json` fuori da `data/`.
 
 ## 6. Area admin
 
@@ -111,10 +129,20 @@ Puoi leggere e modificare lo stock.
 9. Telegram riceve la notifica dell'ordine.
 10. Se il checkout scade, `checkout.session.expired` restituisce lo stock.
 
-## Importante sulla pubblicazione online
+## Pubblicazione su Railway
 
-Visual Studio Code è l'editor. Da solo non pubblica il sito su Internet.
+Il progetto usa esclusivamente Node.js + Express + Stripe + Telegram.
 
-Questa versione è pronta per funzionare sul tuo PC. Per ricevere pagamenti reali da clienti esterni devi successivamente usare un server/hosting che esegua Node.js e un endpoint HTTPS per il webhook Stripe.
+Su Railway:
+
+1. collega il repository;
+2. usa `npm start` come comando di avvio;
+3. inserisci le variabili `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` e `ADMIN_PASSWORD`;
+4. crea un Volume montato su `/app/data`;
+5. configura il webhook Stripe su:
+
+`https://TUO-DOMINIO-RAILWAY/api/stripe-webhook`
+
+Il sito e il pannello admin usano gli endpoint dello stesso server Node.
 
 Per i test locali puoi usare Stripe CLI.
